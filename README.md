@@ -11,8 +11,11 @@ en formato **Parquet**, guardándolos en el repositorio de GitHub.
 - 👥 **Control de usuarios**: el master crea, edita, activa/desactiva y elimina usuarios.
 - 📥 **Descarga de plantilla** Excel con las columnas oficiales.
 - 📤 **Carga de Excel** trabajado, con validación y **consolidación automática**.
-- 🧩 **Consolidación inteligente** por clave (`NO_DOCU + NO_LINEA + PK_ARTICULOS`):
-  reutilizar y volver a subir un archivo **actualiza** las filas en vez de duplicarlas.
+- 🧩 **Reconciliación semanal** por clave (`NO_DOCU + NO_LINEA + PK_ARTICULOS`): al subir
+  la base nueva, los registros que continúan **conservan sus estados** (Enviado/Aplicado),
+  los nuevos entran como `Pendiente` y los que ya no aparecen pasan al **Histórico**.
+- 🗄️ **Histórico**: respaldo automático de los registros que salieron de la base
+  (`data/historico.parquet`). Si un registro reaparece en una carga, vuelve a la base vigente.
 - 🗃️ **Almacenamiento en Parquet** dentro del repositorio (`data/consolidado.parquet`).
 - 📊 **Tablero** con KPIs (pendientes/enviados CxP, costo total, documentos) y gráficos.
 - ⬇️ **Exportación** del consolidado a **Excel** y **Parquet**.
@@ -78,5 +81,19 @@ js/parquet.js       Lectura/escritura Parquet
 js/github.js        Cliente de la API de GitHub
 js/app.js           Lógica principal
 data/usuarios.json  Usuarios (semilla con el master)
-data/consolidado.parquet  Base consolidada (se crea al guardar)
+data/consolidado.parquet  Base consolidada vigente (se crea al guardar)
+data/historico.parquet    Registros que salieron de la base (respaldo)
 ```
+
+## 🔁 Flujo de actualización semanal
+
+1. El **master** descarga/prepara la base (Excel con las columnas oficiales).
+2. La sube en **Cargar / Plantilla** (un solo botón, sin opciones). El sistema la
+   **reconcilia** con la base anterior:
+   - Registros que **continúan** → conservan sus estados (Enviado/Aplicado + fechas).
+   - Registros **nuevos** → entran como `Pendiente`.
+   - Registros que **ya no aparecen** → se mueven al **Histórico** (no se borran).
+
+> 💾 Para que la base y el histórico se compartan entre usuarios y persistan, el master
+> debe configurar el **token de GitHub** en *Configuración*. Sin token, todo queda solo
+> en el navegador del master.

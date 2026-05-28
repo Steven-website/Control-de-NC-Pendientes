@@ -32,6 +32,11 @@ export const COLUMNS = [
 
 export const COLUMN_KEYS = COLUMNS.map(c => c.key);
 
+// Columnas de seguimiento que mantiene el master (Enviado/Aplicado + fechas).
+// Al reconciliar una base nueva, estos valores se CONSERVAN para los registros
+// que ya existían, para no perder el trabajo manual.
+export const CREATED_KEYS = COLUMNS.filter(c => c.created).map(c => c.key);
+
 // ---- Columnas DERIVADAS (calculadas, no se almacenan) ----
 // Se recalculan cada vez que el usuario visualiza o DESCARGA los datos,
 // porque dependen de la fecha actual.
@@ -79,6 +84,7 @@ export const ALL_COLUMNS = [...DERIVED, ...COLUMNS];
 // Rutas de datos dentro del repositorio
 export const PATHS = {
   consolidado: 'data/consolidado.parquet',
+  historico: 'data/historico.parquet',
   usuarios: 'data/usuarios.json',
 };
 
