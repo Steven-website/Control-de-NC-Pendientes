@@ -236,8 +236,9 @@ async function exportExcel() {
     return;
   }
   try {
+    const famMap = buildFamiliaMap();
     const rows = visibleData().map(withDerived);
-    const cols = EXPORT_COLUMNS;                       // SQL → ANTIGÜEDAD → creadas
+    const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // SQL → ANTIGÜEDAD → creadas → Comprador
     const editable = new Set(CREATED_COLUMNS.map(c => c.key));   // solo estas se pueden editar
 
     const wb = new ExcelJS.Workbook();
@@ -251,7 +252,10 @@ async function exportExcel() {
 
     rows.forEach(r => {
       const vals = {};
-      cols.forEach(c => { vals[c.key] = (c.type === 'date') ? (isoDate(r[c.key]) || null) : (r[c.key] ?? null); });
+      cols.forEach(c => {
+        if (c.key === 'COMPRADOR') { vals[c.key] = famMap.get(r['FAMILIA']) || ''; return; }
+        vals[c.key] = (c.type === 'date') ? (isoDate(r[c.key]) || null) : (r[c.key] ?? null);
+      });
       ws.addRow(vals);
     });
 
@@ -333,6 +337,18 @@ function visibleData() {
   return state.data.filter(r => set.has(r['FAMILIA']));
 }
 
+// Columna derivada "Comprador": se obtiene de la FAMILIA de cada fila según los
+// usuarios y sus familias asignadas. Es informativa (no se guarda ni se edita).
+const COMPRADOR_COL = { key: 'COMPRADOR', label: 'Comprador', type: 'text' };
+function buildFamiliaMap() {
+  const m = new Map();
+  for (const u of state.users) {
+    if (u.role === 'master') continue;
+    for (const f of (u.familias || [])) if (!m.has(f)) m.set(f, u.name || u.user);
+  }
+  return m;
+}
+
 // ============================================================
 //  RENDER — Dashboard
 // ============================================================
@@ -396,7 +412,8 @@ let consFilter = { q: '', tipo: '' };
 function renderConsolidado() {
   const head = $('#consolidado-head');
   const body = $('#consolidado-body');
-  head.innerHTML = '<tr>' + ALL_COLUMNS.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  const cols = [...ALL_COLUMNS, COMPRADOR_COL];
+  head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
   // poblar filtro de tipo doc
   const base = visibleData();
@@ -406,16 +423,17 @@ function renderConsolidado() {
     tipos.map(t => `<option value="${t}">${t}</option>`).join('');
   sel.value = consFilter.tipo;
 
+  const famMap = buildFamiliaMap();
   const q = consFilter.q.toLowerCase();
-  let rows = base.map(withDerived);
+  let rows = base.map(withDerived).map(r => ({ ...r, COMPRADOR: famMap.get(r['FAMILIA']) || '' }));
   if (consFilter.tipo) rows = rows.filter(r => r['TIPO DOC'] === consFilter.tipo);
-  if (q) rows = rows.filter(r => ALL_COLUMNS.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
+  if (q) rows = rows.filter(r => cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
 
   $('#consolidado-empty').hidden = base.length > 0;
   body.innerHTML = rows.slice(0, 500).map(r => '<tr>' +
-    ALL_COLUMNS.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
+    cols.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
   if (rows.length > 500) {
-    body.innerHTML += `<tr><td colspan="${ALL_COLUMNS.length}" class="muted" style="text-align:center">Mostrando 500 de ${rows.length} filas. Usa búsqueda/filtros o exporta el archivo completo.</td></tr>`;
+    body.innerHTML += `<tr><td colspan="${cols.length}" class="muted" style="text-align:center">Mostrando 500 de ${rows.length} filas. Usa búsqueda/filtros o exporta el archivo completo.</td></tr>`;
   }
 }
 
