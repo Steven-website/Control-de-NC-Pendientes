@@ -9,6 +9,9 @@ en formato **Parquet**, guardándolos en el repositorio de GitHub.
 
 - 🔐 **Login con roles**: `master` (administrador) y `usuario`.
 - 👥 **Control de usuarios**: el master crea, edita, activa/desactiva y elimina usuarios.
+- 🔎 **Permiso por familia**: a cada usuario se le asignan **familias visibles**; solo verá
+  (tablero, consolidado y exportaciones) las filas de **sus familias**. El master ve todo;
+  un usuario sin familias asignadas también ve todo.
 - 📥 **Descarga de plantilla** Excel con las columnas oficiales.
 - 📤 **Carga de Excel** trabajado, con validación y **consolidación automática**.
 - 🧩 **Reconciliación semanal** por clave (`NO_DOCU + NO_LINEA + PK_ARTICULOS`): al subir

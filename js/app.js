@@ -211,7 +211,7 @@ function parseExcel(arrayBuffer) {
 }
 
 function exportExcel() {
-  const rows = state.data.map(withDerived);
+  const rows = visibleData().map(withDerived);
   const headers = ALL_COLUMNS.map(c => c.key);
   const aoa = [headers, ...rows.map(r => headers.map(h => {
     const col = ALL_COLUMNS.find(c => c.key === h);
@@ -226,7 +226,7 @@ function exportExcel() {
 
 async function exportParquet() {
   try {
-    const rows = state.data.map(withDerived);            // incluye ANTIGÜEDAD recalculada hoy
+    const rows = visibleData().map(withDerived);         // incluye ANTIGÜEDAD recalculada hoy
     const keys = ALL_COLUMNS.map(c => c.key);
     const buf = await writeParquet(rows, keys);
     const blob = new Blob([buf], { type: 'application/octet-stream' });
@@ -237,6 +237,18 @@ async function exportParquet() {
     URL.revokeObjectURL(a.href);
     toast('Consolidado exportado a Parquet', 'ok');
   } catch (e) { toast('Error al generar Parquet: ' + e.message, 'err'); }
+}
+
+// ============================================================
+//  PERMISOS POR FAMILIA
+// ============================================================
+// Datos visibles según el rol: master ve todo; un usuario solo ve sus familias.
+// familias vacío/ausente = ve todo (sin restricción).
+function visibleData() {
+  const s = state.session;
+  if (!s || s.role === 'master' || !s.familias || !s.familias.length) return state.data;
+  const set = new Set(s.familias);
+  return state.data.filter(r => set.has(r['FAMILIA']));
 }
 
 // ============================================================
@@ -263,7 +275,7 @@ function renderBars(el, entries, max) {
 }
 
 function renderDashboard() {
-  const d = state.data;
+  const d = visibleData();
   const pend = d.filter(r => (r['ENVIADO_CXP'] || 'Pendiente') === 'Pendiente').length;
   const env  = d.filter(r => r['ENVIADO_CXP'] === 'Enviado').length;
   const costo = d.reduce((s, r) => s + (Number(r['COST_TOTAL']) || 0), 0);
@@ -305,18 +317,19 @@ function renderConsolidado() {
   head.innerHTML = '<tr>' + ALL_COLUMNS.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
   // poblar filtro de tipo doc
+  const base = visibleData();
   const sel = $('#filter-tipo');
-  const tipos = [...new Set(state.data.map(r => r['TIPO DOC']).filter(Boolean))].sort();
+  const tipos = [...new Set(base.map(r => r['TIPO DOC']).filter(Boolean))].sort();
   sel.innerHTML = '<option value="">Todos los tipos de doc</option>' +
     tipos.map(t => `<option value="${t}">${t}</option>`).join('');
   sel.value = consFilter.tipo;
 
   const q = consFilter.q.toLowerCase();
-  let rows = state.data.map(withDerived);
+  let rows = base.map(withDerived);
   if (consFilter.tipo) rows = rows.filter(r => r['TIPO DOC'] === consFilter.tipo);
   if (q) rows = rows.filter(r => ALL_COLUMNS.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
 
-  $('#consolidado-empty').hidden = state.data.length > 0;
+  $('#consolidado-empty').hidden = base.length > 0;
   body.innerHTML = rows.slice(0, 500).map(r => '<tr>' +
     ALL_COLUMNS.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
   if (rows.length > 500) {
@@ -436,7 +449,7 @@ function bindEvents() {
       const user = state.users.find(x => x.user.toLowerCase() === u.toLowerCase());
       if (!user || !user.active) throw new Error('Usuario no válido o inactivo.');
       if ((await hashPassword(p)) !== user.hash) throw new Error('Contraseña incorrecta.');
-      state.session = { user: user.user, name: user.name, role: user.role };
+      state.session = { user: user.user, name: user.name, role: user.role, familias: user.familias || [] };
       sessionStorage.setItem('ncpend_session', JSON.stringify(state.session));
       enterApp();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; }
@@ -482,6 +495,7 @@ function bindEvents() {
     if (dl) deleteUser(Number(dl.dataset.del));
   });
   $('#user-form').addEventListener('submit', saveUserForm);
+  $('#uf-role').addEventListener('change', e => toggleFamiliasField(e.target.value));
   $$('[data-close]').forEach(b => b.addEventListener('click', () => { $('#user-modal').hidden = true; }));
 
   // Config
@@ -581,11 +595,25 @@ function openUserModal(index) {
   $('#uf-user').value = isEdit ? u.user : '';
   $('#uf-user').disabled = isEdit;
   $('#uf-name').value = isEdit ? u.name : '';
-  $('#uf-role').value = isEdit ? u.role : 'usuario';
+  const role = isEdit ? u.role : 'usuario';
+  $('#uf-role').value = role;
   $('#uf-pass').value = '';
   $('#uf-pass-hint').textContent = isEdit ? '(dejar vacío para no cambiar)' : '';
   $('#uf-active').checked = isEdit ? u.active : true;
+
+  // Familias visibles para el usuario (opciones tomadas de la base + las ya asignadas)
+  const assigned = (isEdit && Array.isArray(u.familias)) ? u.familias : [];
+  const fams = [...new Set([...state.data.map(r => r['FAMILIA']).filter(Boolean), ...assigned])].sort();
+  $('#uf-familias').innerHTML = fams.map(f =>
+    `<option value="${f}"${assigned.includes(f) ? ' selected' : ''}>${f}</option>`).join('');
+  toggleFamiliasField(role);
+
   $('#user-modal').hidden = false;
+}
+
+// Las familias solo aplican a usuarios (el master ve todo).
+function toggleFamiliasField(role) {
+  $('#uf-familias-wrap').hidden = (role === 'master');
 }
 
 async function saveUserForm(e) {
@@ -596,15 +624,17 @@ async function saveUserForm(e) {
   const role = $('#uf-role').value;
   const pass = $('#uf-pass').value;
   const active = $('#uf-active').checked;
+  // master ve todo; para usuarios, las familias seleccionadas (vacío = todas)
+  const familias = role === 'master' ? [] : [...$('#uf-familias').selectedOptions].map(o => o.value);
 
   if (orig) {
     const u = state.users.find(x => x.user === orig);
-    u.name = name; u.role = role; u.active = active;
+    u.name = name; u.role = role; u.active = active; u.familias = familias;
     if (pass) u.hash = await hashPassword(pass);
   } else {
     if (state.users.some(x => x.user.toLowerCase() === userName.toLowerCase())) { toast('Ese usuario ya existe', 'err'); return; }
     if (!pass) { toast('La contraseña es obligatoria', 'err'); return; }
-    state.users.push({ user: userName, name, role, active, hash: await hashPassword(pass) });
+    state.users.push({ user: userName, name, role, active, familias, hash: await hashPassword(pass) });
   }
   try {
     const where = await saveUsers();
@@ -648,7 +678,11 @@ async function init() {
     try {
       state.session = JSON.parse(saved);
       const u = state.users.find(x => x.user === state.session.user);
-      if (u && u.active) { await enterApp(); return; }
+      if (u && u.active) {
+        state.session.role = u.role;
+        state.session.familias = u.familias || [];
+        await enterApp(); return;
+      }
     } catch { /* nada */ }
   }
   $('#login-view').hidden = false;
