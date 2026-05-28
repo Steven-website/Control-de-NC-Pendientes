@@ -65,7 +65,7 @@
         <button class="nav-item admin-only" data-view="usuarios" hidden>
           <span class="nav-ico">👥</span> Usuarios
         </button>
-        <button class="nav-item admin-only" data-view="config" hidden>
+        <button class="nav-item" data-view="config">
           <span class="nav-ico">⚙️</span> Configuración
         </button>
       </nav>
@@ -248,9 +248,9 @@
             <h3>Configuración de GitHub (persistencia)</h3>
             <p class="muted">Para guardar la base consolidada y los usuarios directamente en el repositorio se requiere un token de acceso personal (PAT) con permiso de escritura. Se almacena solo en este navegador.</p>
             <form id="config-form" class="config-form">
-              <label><span>Owner (usuario/org)</span><input type="text" id="cfg-owner" placeholder="Steven-website" /></label>
-              <label><span>Repositorio</span><input type="text" id="cfg-repo" placeholder="Control-de-NC-Pendientes" /></label>
-              <label><span>Rama</span><input type="text" id="cfg-branch" placeholder="main" /></label>
+              <label class="admin-only"><span>Owner (usuario/org)</span><input type="text" id="cfg-owner" placeholder="Steven-website" /></label>
+              <label class="admin-only"><span>Repositorio</span><input type="text" id="cfg-repo" placeholder="Control-de-NC-Pendientes" /></label>
+              <label class="admin-only"><span>Rama</span><input type="text" id="cfg-branch" placeholder="main" /></label>
               <label><span>Token (PAT)</span>
                 <span style="display:flex;gap:8px;align-items:center">
                   <input type="password" id="cfg-token" placeholder="ghp_..." style="flex:1" />
