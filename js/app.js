@@ -263,6 +263,7 @@ async function exportExcel() {
     cols.forEach((c, i) => {
       if (!editable.has(c.key)) return;                // las del SQL/Antigüedad quedan bloqueadas (default)
       const colNum = i + 1;
+      const positivo = (c.type === 'select' && c.options) ? c.options.find(o => o !== 'Pendiente') : null;
       for (let rn = 2; rn <= lastRow; rn++) {
         const cell = ws.getCell(rn, colNum);
         cell.protection = { locked: false };           // editable
@@ -273,6 +274,10 @@ async function exportExcel() {
             showErrorMessage: true, errorTitle: 'Valor no válido',
             error: 'Elige una opción de la lista.',
           };
+          // Color fijo según el valor actual: amarillo = Enviado/Aplicado, rojo = Pendiente/vacío.
+          const v = String(cell.value == null ? '' : cell.value).trim();
+          const color = (v === positivo) ? 'FFFFF2CC' : 'FFFFC7CE';
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: color } };
         }
       }
     });
@@ -280,6 +285,7 @@ async function exportExcel() {
     // Color de estado (formato condicional): amarillo claro = Enviado/Aplicado,
     // rojo claro = Pendiente. Cambia solo al elegir el valor en la lista.
     if (lastRow >= 2) {
+      let prio = 1;
       cols.forEach((c, i) => {
         if (c.type !== 'select' || !c.options || !editable.has(c.key)) return;
         const letter = ws.getColumn(i + 1).letter;
@@ -288,10 +294,10 @@ async function exportExcel() {
         ws.addConditionalFormatting({
           ref,
           rules: [
-            { type: 'cellIs', operator: 'equal', priority: 1, formulae: [`"${positivo}"`],
-              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } } } },
-            { type: 'cellIs', operator: 'equal', priority: 2, formulae: ['"Pendiente"'],
-              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' }, fgColor: { argb: 'FFFFC7CE' } } } },
+            { type: 'cellIs', operator: 'equal', priority: prio++, formulae: [`"${positivo}"`],
+              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' } } } },
+            { type: 'cellIs', operator: 'equal', priority: prio++, formulae: ['"Pendiente"'],
+              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' } } } },
           ],
         });
       });
