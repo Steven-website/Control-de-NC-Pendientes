@@ -443,7 +443,7 @@ function renderUsuarios() {
       <td><span class="badge ${u.active ? 'badge-on' : 'badge-off'}">${u.active ? 'Activo' : 'Inactivo'}</span></td>
       <td>
         <button class="icon-btn" data-edit="${i}" title="Editar">✏️</button>
-        ${u.user === 'master' ? '' : `<button class="icon-btn" data-del="${i}" title="Eliminar">🗑️</button>`}
+        ${u.user.toLowerCase() === 'master' ? '' : `<button class="icon-btn" data-del="${i}" title="Eliminar">🗑️</button>`}
       </td>
     </tr>`).join('');
 }
@@ -727,7 +727,7 @@ async function saveUserForm(e) {
 
 async function deleteUser(index) {
   const u = state.users[index];
-  if (u.user === 'master') { toast('No se puede eliminar el master principal', 'err'); return; }
+  if (u.user.toLowerCase() === 'master') { toast('No se puede eliminar el master principal', 'err'); return; }
   if (!confirm(`¿Eliminar al usuario "${u.user}"?`)) return;
   state.users.splice(index, 1);
   try { await saveUsers(); renderUsuarios(); toast('Usuario eliminado', 'ok'); }

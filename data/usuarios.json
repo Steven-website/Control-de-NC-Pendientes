@@ -1,11 +1,11 @@
 [
   {
-    "user": "master",
+    "user": "Master",
     "name": "Administrador Master",
     "role": "master",
     "active": true,
     "familias": [],
-    "hash": "e7bc2f973afb8dfaf00fadfb19596741108be08ab4a107c6a799c429b684c64a"
+    "hash": "b7495678d76c5104409d10f23cd89326bb04c576b9907781a8679ac715584b9b"
   },
   {
     "user": "Jorge",
@@ -13,7 +13,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["DETALLES", "FIESTA", "NAVIDAD"],
-    "hash": "f69ed3a744195d7d1429b167f449ed9a76f36ba6a74f997a7bfe179649de32c4"
+    "hash": "7b0e7703ab5609176984a098e66973b5fb705fae8620343bf36201450760ff9c"
   },
   {
     "user": "Erika",
@@ -21,7 +21,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["CUIDADO PERSONAL", "BEBE", "ZAPATERIA", "TIENDA"],
-    "hash": "119f9f0ee689cc9d15a25d4e4b49bde9fa03066afba88cb68fb7e38b292dee25"
+    "hash": "c37ee1d7892f5c20b2f9d6e106f52ec030a1cbd33bd9d98e34b86dee0deb72e6"
   },
   {
     "user": "Azucena",
@@ -29,7 +29,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["COMESTIBLE"],
-    "hash": "5b0b0dec90eab725f521ebec334858586ed097d2f5b18ed6c5ca1aba3d9e43f8"
+    "hash": "f64083e00b3380e7da456fba1676c048adaf7026c8d7665908f35155ec1c11a8"
   },
   {
     "user": "Stward",
@@ -37,7 +37,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["AUTOMOTRIZ", "ELECTRODOMESTICOS", "FERRETERIA", "MUEBLES"],
-    "hash": "e86cb0b421120fe29c9b5c55e939d63272388850a7b4e60a295a15da356ca9f1"
+    "hash": "8a3c467a2da2610c2bdb3eb65c5e73b6eb40abdf7f449b9648c72f501843eb3f"
   },
   {
     "user": "Beatriz",
@@ -45,7 +45,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["LIBRERIA"],
-    "hash": "8499726e178ed90033984cf18145e1f554095358fe52b305139fbcad1ce11492"
+    "hash": "b91e9ee634066e9bb11f4f0dafc52f9e9f550149668a3eb7a31de8a2a3396ac5"
   },
   {
     "user": "David",
@@ -53,7 +53,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["JARDINERIA", "MASCOTAS", "RECREACION"],
-    "hash": "0f14089313b20c1723ec1d660b0aaa4f473cf5b321cd370f2d48b7bcf9a7b234"
+    "hash": "06036e2343750e3a5b0aa55724748fb0c6659214ae087a852c20d5e743151d67"
   },
   {
     "user": "Yordan",
@@ -61,7 +61,7 @@
     "role": "usuario",
     "active": true,
     "familias": ["DEPORTE"],
-    "hash": "391dd1037cb84635da399f941d74c2fe85debc9e64872b55a21149a44ed218fa"
+    "hash": "c5bdf3e0ac196cc160e92aaca1d8147c7a774ce22d469dcf6adc3a86185de15c"
   },
   {
     "user": "Linda",
@@ -69,6 +69,6 @@
     "role": "usuario",
     "active": true,
     "familias": ["HOGAR"],
-    "hash": "4240ea104552691e8b8ff7e870e84477e31e4179dfb0961c39909cbc387b2ab4"
+    "hash": "0b9397d2ddbab8244a79e1c9cb4937ed70f775e6acc35552aaa9a1afc283f7ce"
   }
 ]
