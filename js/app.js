@@ -472,11 +472,14 @@ function applyRole() {
   $('#user-role').textContent = state.session.role;
   $('#user-avatar').textContent = (state.session.name || '?').charAt(0).toUpperCase();
 
-  // Texto y botón de la sección Cargar según el rol
+  // Texto y botones de la sección Cargar según el rol
+  $('#download-mydata').hidden = isMaster;     // descargar para editar: solo usuarios
   if (isMaster) {
+    $('#cargar-intro').textContent = 'Sube la base de la semana (el Excel del SQL).';
     $('#upload-help').innerHTML = 'Sube la base de la semana. Reemplaza a la anterior: los que continúan <b>conservan sus estados</b>, los nuevos quedan <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b>.';
     $('#confirm-upload').textContent = 'Cargar base';
   } else {
+    $('#cargar-intro').innerHTML = '1) Descarga tu data · 2) edítala en Excel (Enviado/Aplicado) · 3) súbela.';
     $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios (Enviado/Aplicado). Se actualizan <b>solo las filas de tus familias</b>; no afecta al resto de la base.';
     $('#confirm-upload').textContent = 'Guardar mis cambios';
   }
@@ -532,8 +535,9 @@ function bindEvents() {
   // Navegación
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
-  // Export
+  // Export / descarga de data
   $('#export-excel').addEventListener('click', exportExcel);
+  $('#download-mydata').addEventListener('click', exportExcel);
   $('#export-parquet').addEventListener('click', exportParquet);
 
   // Filtros consolidado
