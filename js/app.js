@@ -545,20 +545,12 @@ function handleFile(file) {
 
 async function confirmUpload() {
   if (!state.pending) return;
-  const replace = $('#replace-mode').checked;
   const btn = $('#confirm-upload');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    let result, removed;
-    if (replace) {
-      // Reemplazo total: la base nueva es todo; lo anterior va completo al histórico.
-      result = state.pending.slice();
-      removed = state.data.slice();
-    } else {
-      // Reconciliación semanal: conserva estados de los que continúan,
-      // archiva los que ya no aparecen.
-      ({ result, removed } = reconcileWeekly(state.data, state.pending));
-    }
+    // Reconciliación: la base nueva es la verdad vigente. Conserva los estados
+    // de los registros que continúan y archiva los que ya no aparecen.
+    const { result, removed } = reconcileWeekly(state.data, state.pending);
 
     // Histórico: agrega los removidos y quita los que reaparecieron (vuelven a estar vigentes).
     const activeKeys = new Set(result.map(rowKey));
@@ -576,7 +568,6 @@ async function confirmUpload() {
     state.pending = null;
     $('#upload-summary').hidden = true;
     $('#file-input').value = '';
-    $('#replace-mode').checked = false;
     const detalle = `${result.length} vigentes · ${removed.length} archivados`;
     toast(
       where === 'github'
@@ -588,7 +579,7 @@ async function confirmUpload() {
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Consolidar y guardar';
+    btn.disabled = false; btn.textContent = 'Cargar base';
   }
 }
 

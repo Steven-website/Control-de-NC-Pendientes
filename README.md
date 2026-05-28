@@ -88,12 +88,11 @@ data/historico.parquet    Registros que salieron de la base (respaldo)
 ## 🔁 Flujo de actualización semanal
 
 1. El **master** descarga/prepara la base (Excel con las columnas oficiales).
-2. La sube en **Cargar / Plantilla**. El sistema la **reconcilia** con la base anterior:
+2. La sube en **Cargar / Plantilla** (un solo botón, sin opciones). El sistema la
+   **reconcilia** con la base anterior:
    - Registros que **continúan** → conservan sus estados (Enviado/Aplicado + fechas).
    - Registros **nuevos** → entran como `Pendiente`.
    - Registros que **ya no aparecen** → se mueven al **Histórico** (no se borran).
-3. La casilla **"Reemplazo total"** ignora la reconciliación y empieza de cero
-   (lo anterior se respalda igualmente en el Histórico).
 
 > 💾 Para que la base y el histórico se compartan entre usuarios y persistan, el master
 > debe configurar el **token de GitHub** en *Configuración*. Sin token, todo queda solo
