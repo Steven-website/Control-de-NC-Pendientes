@@ -6,6 +6,7 @@ export const COLUMNS = [
   // --- Columnas creadas por el sistema, editables por el usuario ---
   { key: 'ENVIADO_CXP',       label: 'Enviado CxP',        type: 'select', options: ['Pendiente', 'Enviado'], default: 'Pendiente', created: true, input: true },
   { key: 'FECHA_ENVIADO_CXP', label: 'Fecha Enviado CxP',  type: 'date',   created: true, input: true },
+  { key: 'NO_NOTA_CREDITO',   label: 'No. Nota de Crédito', type: 'text',  created: true, input: true },
   { key: 'APLICADO_CXP',      label: 'Aplicado CxP',       type: 'select', options: ['Pendiente', 'Aplicado'], default: 'Pendiente', created: true, input: true },
   { key: 'FECHA_APLICACION_CXP', label: 'Fecha Aplicación CxP', type: 'date', created: true, input: true },
   // --- Columnas provenientes del SQL ---
