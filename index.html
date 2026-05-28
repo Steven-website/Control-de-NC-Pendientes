@@ -165,35 +165,27 @@
         <!-- CARGAR -->
         <section class="view" data-view="cargar" hidden>
           <div class="steps">
-            <div class="step"><span class="step-n">1</span><div><strong>Descarga la plantilla</strong><small>Excel con las columnas correctas</small></div></div>
-            <div class="step"><span class="step-n">2</span><div><strong>Llena tus NC</strong><small>Trabaja el archivo en tu PC</small></div></div>
+            <div class="step"><span class="step-n">1</span><div><strong>Prepara tu base</strong><small>Exporta el Excel del SQL</small></div></div>
+            <div class="step"><span class="step-n">2</span><div><strong>Revisa los datos</strong><small>Encabezados correctos</small></div></div>
             <div class="step"><span class="step-n">3</span><div><strong>Sube la base nueva</strong><small>Se reconcilia con la anterior</small></div></div>
           </div>
 
-          <div class="cargar-grid">
-            <div class="panel">
-              <h3>📥 Descargar plantilla</h3>
-              <p class="muted">Descarga el formato oficial en Excel para registrar las No Conformidades.</p>
-              <button id="download-template" class="btn btn-primary">Descargar plantilla Excel</button>
+          <div class="panel">
+            <h3>📤 Cargar Excel</h3>
+            <p class="muted">Arrastra o selecciona el archivo de la base. El sistema lo valida y consolida en Parquet.</p>
+            <div id="dropzone" class="dropzone">
+              <span class="dz-ico">📄</span>
+              <p>Arrastra tu archivo aquí o <label class="link" for="file-input">selecciónalo</label></p>
+              <small>Formatos: .xlsx, .xls</small>
+              <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
             </div>
-
-            <div class="panel">
-              <h3>📤 Cargar Excel trabajado</h3>
-              <p class="muted">Arrastra o selecciona tu archivo. El sistema lo valida y consolida en Parquet.</p>
-              <div id="dropzone" class="dropzone">
-                <span class="dz-ico">📄</span>
-                <p>Arrastra tu archivo aquí o <label class="link" for="file-input">selecciónalo</label></p>
-                <small>Formatos: .xlsx, .xls</small>
-                <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
-              </div>
-              <div id="upload-summary" class="upload-summary" hidden></div>
-              <p class="muted" style="margin-top:12px;font-size:.85rem">
-                Solo sube la base de la semana. Reemplaza a la anterior automáticamente:
-                los registros que continúan <b>conservan sus estados</b> (Enviado/Aplicado),
-                los nuevos quedan como <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b> como respaldo.
-              </p>
-              <button id="confirm-upload" class="btn btn-success" disabled>Cargar base</button>
-            </div>
+            <div id="upload-summary" class="upload-summary" hidden></div>
+            <p class="muted" style="margin-top:12px;font-size:.85rem">
+              Solo sube la base de la semana. Reemplaza a la anterior automáticamente:
+              los registros que continúan <b>conservan sus estados</b> (Enviado/Aplicado),
+              los nuevos quedan como <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b> como respaldo.
+            </p>
+            <button id="confirm-upload" class="btn btn-success" disabled>Cargar base</button>
           </div>
         </section>
 

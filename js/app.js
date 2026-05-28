@@ -191,18 +191,8 @@ function mergeHistorico(historico, removed) {
 }
 
 // ============================================================
-//  EXCEL (plantilla, importación, exportación)
+//  EXCEL (importación, exportación)
 // ============================================================
-function downloadTemplate() {
-  // Encabezados = columnas creadas + base (incluye ANTIGÜEDAD calculada vacía)
-  const headers = ALL_COLUMNS.map(c => c.key);
-  const ws = XLSX.utils.aoa_to_sheet([headers]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'NC');
-  XLSX.writeFile(wb, 'Plantilla_Control_NC.xlsx');
-  toast('Plantilla descargada', 'ok');
-}
-
 function parseExcel(arrayBuffer) {
   const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -464,8 +454,7 @@ function bindEvents() {
   // Navegación
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
-  // Plantilla / export
-  $('#download-template').addEventListener('click', downloadTemplate);
+  // Export
   $('#export-excel').addEventListener('click', exportExcel);
   $('#export-parquet').addEventListener('click', exportParquet);
 
