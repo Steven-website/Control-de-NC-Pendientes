@@ -48,6 +48,17 @@ export async function testConnection() {
   return data.full_name;
 }
 
+// Lista los commits (historial) que afectaron a un archivo del repo.
+export async function listCommits(path, perPage = 30) {
+  const c = getConfig();
+  const branch = c.branch || 'main';
+  let url = `/repos/${c.owner}/${c.repo}/commits?sha=${encodeURIComponent(branch)}&per_page=${perPage}`;
+  if (path) url += `&path=${encodeURIComponent(path)}`;
+  const res = await api(url);
+  if (!res.ok) throw new Error(`Error al leer el historial (${res.status}).`);
+  return res.json();
+}
+
 // Lee un archivo del repo. Devuelve { content: ArrayBuffer|string, sha } o null si no existe.
 export async function getFile(path, asBinary = false) {
   const c = getConfig();

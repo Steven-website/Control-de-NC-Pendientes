@@ -376,6 +376,42 @@ function exportHistoricoExcel() {
 }
 
 // ============================================================
+//  RENDER — Actividad (historial de cambios en la base)
+// ============================================================
+async function renderActividad() {
+  const body = $('#actividad-body');
+  const empty = $('#actividad-empty');
+  if (!gh.hasToken()) {
+    body.innerHTML = '';
+    empty.hidden = false;
+    empty.textContent = 'Configura el token de GitHub (en Configuración) para ver el historial de cambios.';
+    return;
+  }
+  empty.hidden = true;
+  body.innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center">Cargando…</td></tr>';
+  try {
+    const commits = await gh.listCommits(PATHS.consolidado, 30);
+    if (!commits.length) {
+      body.innerHTML = '';
+      empty.hidden = false;
+      empty.textContent = 'Todavía no hay cambios registrados en la base.';
+      return;
+    }
+    body.innerHTML = commits.map(c => {
+      const d = new Date(c.commit.author.date);
+      const fecha = `${d.toLocaleDateString('es-CR')} ${d.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })}`;
+      const autor = (c.commit.author && c.commit.author.name) || (c.author && c.author.login) || '—';
+      const msg = (c.commit.message || '').split('\n')[0];
+      return `<tr><td>${fecha}</td><td>${autor}</td><td>${msg}</td></tr>`;
+    }).join('');
+  } catch (ex) {
+    body.innerHTML = '';
+    empty.hidden = false;
+    empty.textContent = 'No se pudo cargar el historial: ' + ex.message;
+  }
+}
+
+// ============================================================
 //  RENDER — Usuarios
 // ============================================================
 function renderUsuarios() {
@@ -396,7 +432,7 @@ function renderUsuarios() {
 // ============================================================
 //  NAVEGACIÓN / VISTAS
 // ============================================================
-const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', historico: 'Histórico', usuarios: 'Control de Usuarios', config: 'Configuración' };
+const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', historico: 'Histórico', actividad: 'Actividad', usuarios: 'Control de Usuarios', config: 'Configuración' };
 
 function showView(name) {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
@@ -405,6 +441,7 @@ function showView(name) {
   if (name === 'dashboard') renderDashboard();
   if (name === 'consolidado') renderConsolidado();
   if (name === 'historico') renderHistorico();
+  if (name === 'actividad') renderActividad();
   if (name === 'usuarios') renderUsuarios();
   if (name === 'config') loadConfigForm();
 }
@@ -478,6 +515,9 @@ function bindEvents() {
   // Histórico
   $('#hist-search').addEventListener('input', e => { histFilter.q = e.target.value; renderHistorico(); });
   $('#export-hist-excel').addEventListener('click', exportHistoricoExcel);
+
+  // Actividad
+  $('#actividad-refresh').addEventListener('click', renderActividad);
 
   // Carga de archivo
   const dz = $('#dropzone'), fi = $('#file-input');

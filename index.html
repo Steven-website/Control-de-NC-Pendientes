@@ -60,6 +60,9 @@
         <button class="nav-item admin-only" data-view="historico" hidden>
           <span class="nav-ico">🗄️</span> Histórico
         </button>
+        <button class="nav-item admin-only" data-view="actividad" hidden>
+          <span class="nav-ico">🕓</span> Actividad
+        </button>
         <button class="nav-item admin-only" data-view="usuarios" hidden>
           <span class="nav-ico">👥</span> Usuarios
         </button>
@@ -207,6 +210,24 @@
               </table>
             </div>
             <p id="historico-empty" class="empty-state" hidden>El histórico está vacío. Aquí aparecerán los registros que ya no vengan en la base nueva.</p>
+          </div>
+        </section>
+
+        <!-- ACTIVIDAD (admin) -->
+        <section class="view" data-view="actividad" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Actividad · cambios en la base</h3>
+              <button id="actividad-refresh" class="btn btn-light">↻ Actualizar</button>
+            </div>
+            <p class="muted">Historial de subidas/ajustes a la base (tomado del repositorio). Cada fila es un guardado: fecha, quién lo hizo y un resumen del cambio.</p>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Fecha</th><th>Autor</th><th>Descripción</th></tr></thead>
+                <tbody id="actividad-body"></tbody>
+              </table>
+            </div>
+            <p id="actividad-empty" class="empty-state" hidden></p>
           </div>
         </section>
 
