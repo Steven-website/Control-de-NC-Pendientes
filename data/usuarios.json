@@ -62,5 +62,13 @@
     "active": true,
     "familias": ["DEPORTE"],
     "hash": "391dd1037cb84635da399f941d74c2fe85debc9e64872b55a21149a44ed218fa"
+  },
+  {
+    "user": "linda",
+    "name": "Linda",
+    "role": "usuario",
+    "active": true,
+    "familias": ["HOGAR"],
+    "hash": "4240ea104552691e8b8ff7e870e84477e31e4179dfb0961c39909cbc387b2ab4"
   }
 ]
