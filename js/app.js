@@ -421,7 +421,7 @@ let consFilter = { q: '', tipo: '' };
 function renderConsolidado() {
   const head = $('#consolidado-head');
   const body = $('#consolidado-body');
-  const cols = [...ALL_COLUMNS, COMPRADOR_COL];
+  const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // mismo orden que el Excel
   head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
   // poblar filtro de tipo doc
@@ -454,18 +454,20 @@ let histFilter = { q: '' };
 function renderHistorico() {
   const head = $('#historico-head');
   const body = $('#historico-body');
-  head.innerHTML = '<tr>' + ALL_COLUMNS.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // mismo orden que el Excel
+  head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
+  const famMap = buildFamiliaMap();
   const q = histFilter.q.toLowerCase();
-  let rows = state.historico.map(withDerived);
-  if (q) rows = rows.filter(r => ALL_COLUMNS.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
+  let rows = state.historico.map(withDerived).map(r => ({ ...r, COMPRADOR: famMap.get(r['FAMILIA']) || '' }));
+  if (q) rows = rows.filter(r => cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
 
   $('#historico-count').textContent = state.historico.length.toLocaleString('es-CR');
   $('#historico-empty').hidden = state.historico.length > 0;
   body.innerHTML = rows.slice(0, 500).map(r => '<tr>' +
-    ALL_COLUMNS.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
+    cols.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
   if (rows.length > 500) {
-    body.innerHTML += `<tr><td colspan="${ALL_COLUMNS.length}" class="muted" style="text-align:center">Mostrando 500 de ${rows.length} filas. Usa la búsqueda o exporta el archivo completo.</td></tr>`;
+    body.innerHTML += `<tr><td colspan="${cols.length}" class="muted" style="text-align:center">Mostrando 500 de ${rows.length} filas. Usa la búsqueda o exporta el archivo completo.</td></tr>`;
   }
 }
 
