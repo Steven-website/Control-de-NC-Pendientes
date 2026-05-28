@@ -47,11 +47,55 @@ const state = {
   pending: null,    // filas pendientes de confirmar carga
 };
 
-// ---------- Persistencia local (respaldo sin token) ----------
+// ---------- Persistencia local (respaldo / caché) ----------
 const LS = {
   get(k) { try { return JSON.parse(localStorage.getItem('ncpend_' + k)); } catch { return null; } },
   set(k, v) { try { localStorage.setItem('ncpend_' + k, JSON.stringify(v)); return true; } catch { return false; } },
 };
+
+// ---------- Supabase (almacenamiento de datos en la nube) ----------
+const SB_URL = 'https://rhxpkcltbpbzcojninbs.supabase.co';
+const SB_KEY = 'sb_publishable_LpNR48o_Ue9Bp8Ufnkgz3A_l2rjZ2do';
+const SB_TABLE = 'nc_pendientes';
+let _sb = null;
+function sb() {
+  if (!_sb) {
+    if (typeof supabase === 'undefined') throw new Error('No se cargó la librería de Supabase (revisa tu conexión)');
+    _sb = supabase.createClient(SB_URL, SB_KEY);
+  }
+  return _sb;
+}
+
+// Lee filas de la tabla. archivado=false → vigentes; true → histórico.
+// familias (opcional) limita a esas familias.
+async function sbFetch(archivado, familias) {
+  const c = sb();
+  const all = [];
+  let from = 0; const size = 1000;
+  for (;;) {
+    let q = c.from(SB_TABLE).select('data').eq('archivado', archivado);
+    if (familias && familias.length) q = q.in('familia', familias);
+    const { data, error } = await q.range(from, from + size - 1);
+    if (error) throw new Error(error.message);
+    for (const row of data) all.push(row.data);
+    if (data.length < size) break;
+    from += size;
+  }
+  return all;
+}
+
+// Inserta/actualiza filas (por clave id). archivado marca vigente/histórico.
+async function sbUpsert(rows, archivado) {
+  if (!rows.length) return;
+  const c = sb();
+  const payload = rows.map(r => ({
+    id: rowKey(r), familia: r['FAMILIA'] ?? null, archivado, data: r, updated_at: new Date().toISOString(),
+  }));
+  for (let i = 0; i < payload.length; i += 500) {
+    const { error } = await c.from(SB_TABLE).upsert(payload.slice(i, i + 500), { onConflict: 'id' });
+    if (error) throw new Error(error.message);
+  }
+}
 
 // ---------- Hash de contraseña ----------
 async function hashPassword(pw) {
@@ -96,54 +140,19 @@ async function saveUsers() {
 //  DATOS CONSOLIDADOS
 // ============================================================
 async function loadConsolidado() {
-  let txt = null;
-  try {
-    if (gh.hasToken()) { const f = await gh.getFile(PATHS.consolidado, false); txt = f && f.content; }
-    if (!txt) { const r = await fetch(PATHS.consolidado + '?t=' + Date.now()); if (r.ok) txt = await r.text(); }
-  } catch { /* ignora */ }
-
-  if (txt) {
-    try { state.data = JSON.parse(txt) || []; }
-    catch (e) { console.error(e); state.data = LS.get('data') || []; }
-  } else {
-    state.data = LS.get('data') || [];
-  }
-}
-
-async function saveConsolidado(rows, msg) {
-  state.data = rows;
-  LS.set('data', rows);
-  if (gh.hasToken()) {
-    await gh.putFile(PATHS.consolidado, JSON.stringify(rows), msg || 'Actualizar consolidado');
-    return 'github';
-  }
-  return 'local';
+  const s = state.session;
+  // Un usuario solo carga sus familias; el master carga todo lo vigente.
+  const fams = (s && s.role !== 'master' && s.familias && s.familias.length) ? s.familias : null;
+  try { state.data = await sbFetch(false, fams); LS.set('data', state.data); }
+  catch (e) { console.error(e); state.data = LS.get('data') || []; }
 }
 
 // ---------- Histórico (respaldo de registros que salieron de la base) ----------
 async function loadHistorico() {
-  let txt = null;
-  try {
-    if (gh.hasToken()) { const f = await gh.getFile(PATHS.historico, false); txt = f && f.content; }
-    if (!txt) { const r = await fetch(PATHS.historico + '?t=' + Date.now()); if (r.ok) txt = await r.text(); }
-  } catch { /* ignora */ }
-
-  if (txt) {
-    try { state.historico = JSON.parse(txt) || []; }
-    catch (e) { console.error(e); state.historico = LS.get('historico') || []; }
-  } else {
-    state.historico = LS.get('historico') || [];
-  }
-}
-
-async function saveHistorico(rows, msg) {
-  state.historico = rows;
-  LS.set('historico', rows);
-  if (gh.hasToken()) {
-    await gh.putFile(PATHS.historico, JSON.stringify(rows), msg || 'Actualizar histórico');
-    return 'github';
-  }
-  return 'local';
+  // El histórico solo lo consulta el master.
+  if (!state.session || state.session.role !== 'master') { state.historico = []; return; }
+  try { state.historico = await sbFetch(true); LS.set('historico', state.historico); }
+  catch (e) { console.error(e); state.historico = LS.get('historico') || []; }
 }
 
 // ============================================================
@@ -579,8 +588,8 @@ function loadConfigForm() {
 
 function updateSyncPill() {
   const pill = $('#sync-status');
-  if (gh.hasToken()) { pill.textContent = '● GitHub'; pill.className = 'sync-pill ok'; }
-  else { pill.textContent = '● Local'; pill.className = 'sync-pill'; }
+  pill.textContent = '● En línea';
+  pill.className = 'sync-pill ok';
 }
 
 // ============================================================
@@ -716,33 +725,37 @@ async function confirmUpload() {
   const btn = $('#confirm-upload');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    let where, detalle;
+    let detalle;
     if (isMaster) {
-      // MASTER: la base nueva es la verdad vigente. Conserva estados de los que
-      // continúan y archiva los que ya no aparecen.
+      // MASTER: la base nueva es la verdad vigente. Las que continúan conservan
+      // sus estados; las que ya no aparecen pasan al histórico (archivado=true).
       const { result, removed } = reconcileWeekly(state.data, state.pending);
-      const activeKeys = new Set(result.map(rowKey));
-      const hist = mergeHistorico(state.historico, removed).filter(r => !activeKeys.has(rowKey(r)));
-      const histChanged = removed.length > 0 || hist.length !== state.historico.length;
-      where = await saveConsolidado(result, `Base actualizada (${result.length} vigentes, ${removed.length} al histórico)`);
-      if (histChanged) await saveHistorico(hist, `Histórico actualizado (${hist.length} registros)`);
+      await sbUpsert(result, false);
+      await sbUpsert(removed, true);
       detalle = `${result.length} vigentes · ${removed.length} archivados`;
     } else {
-      // USUARIO: actualiza solo las filas de SUS familias, sin tocar el resto.
-      const { rows, updated, ignored } = patchUserRows(state.data, state.pending, state.session.familias);
-      where = await saveConsolidado(rows, `Cambios de ${state.session.user} (${updated} filas actualizadas)`);
-      detalle = `${updated} filas actualizadas` + (ignored ? ` · ${ignored} ignoradas (otras familias)` : '');
+      // USUARIO: actualiza solo los campos creados de las filas de SUS familias.
+      const allowed = new Set(state.session.familias || []);
+      const existing = new Map(state.data.map(r => [rowKey(r), r]));
+      const changed = [];
+      for (const inc of state.pending) {
+        const prev = existing.get(rowKey(inc));
+        if (!prev) continue;
+        if (allowed.size && !allowed.has(prev['FAMILIA'])) continue;
+        const merged = { ...prev };
+        for (const k of CREATED_KEYS) if (inc[k] !== undefined) merged[k] = inc[k];
+        changed.push(merged);
+      }
+      await sbUpsert(changed, false);
+      detalle = `${changed.length} filas actualizadas`;
     }
 
+    await loadConsolidado();
+    await loadHistorico();
     state.pending = null;
     $('#upload-summary').hidden = true;
     $('#file-input').value = '';
-    toast(
-      where === 'github'
-        ? `Guardado en GitHub ✓ (${detalle})`
-        : `Guardado localmente (${detalle})`,
-      where === 'github' ? 'ok' : '',
-    );
+    toast(`Guardado en la nube ✓ (${detalle})`, 'ok');
     showView('dashboard');
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
