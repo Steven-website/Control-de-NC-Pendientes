@@ -183,11 +183,7 @@
               <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
             </div>
             <div id="upload-summary" class="upload-summary" hidden></div>
-            <p class="muted" style="margin-top:12px;font-size:.85rem">
-              Solo sube la base de la semana. Reemplaza a la anterior automáticamente:
-              los registros que continúan <b>conservan sus estados</b> (Enviado/Aplicado),
-              los nuevos quedan como <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b> como respaldo.
-            </p>
+            <p id="upload-help" class="muted" style="margin-top:12px;font-size:.85rem"></p>
             <button id="confirm-upload" class="btn btn-success" disabled>Cargar base</button>
           </div>
         </section>
@@ -256,7 +252,13 @@
               <label><span>Owner (usuario/org)</span><input type="text" id="cfg-owner" placeholder="Steven-website" /></label>
               <label><span>Repositorio</span><input type="text" id="cfg-repo" placeholder="Control-de-NC-Pendientes" /></label>
               <label><span>Rama</span><input type="text" id="cfg-branch" placeholder="main" /></label>
-              <label><span>Token (PAT)</span><input type="password" id="cfg-token" placeholder="ghp_..." /></label>
+              <label><span>Token (PAT)</span>
+                <span style="display:flex;gap:8px;align-items:center">
+                  <input type="password" id="cfg-token" placeholder="ghp_..." style="flex:1" />
+                  <button type="button" id="cfg-token-show" class="btn btn-light" title="Mostrar / ocultar">👁</button>
+                  <button type="button" id="cfg-token-copy" class="btn btn-light" title="Copiar token">📋</button>
+                </span>
+              </label>
               <div class="row gap">
                 <button type="submit" class="btn btn-primary">Guardar configuración</button>
                 <button type="button" id="test-conn" class="btn btn-light">Probar conexión</button>

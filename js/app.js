@@ -190,6 +190,25 @@ function mergeHistorico(historico, removed) {
   return [...map.values()];
 }
 
+// Actualización de un USUARIO: sobre la base completa, actualiza SOLO los campos de
+// seguimiento (Enviado/Aplicado + fechas) de las filas que vienen en su archivo y que
+// pertenecen a SUS familias. No agrega, no borra ni archiva nada de otras familias.
+function patchUserRows(existing, incoming, familias) {
+  const allowed = new Set(familias || []);
+  const inMap = new Map(incoming.map(r => [rowKey(r), r]));
+  let updated = 0, ignored = 0;
+  const rows = existing.map(prev => {
+    const r = inMap.get(rowKey(prev));
+    if (!r) return prev;
+    if (allowed.size && !allowed.has(prev['FAMILIA'])) { ignored++; return prev; }
+    const merged = { ...prev };
+    for (const k of CREATED_KEYS) if (r[k] !== undefined) merged[k] = r[k];
+    updated++;
+    return merged;
+  });
+  return { rows, updated, ignored };
+}
+
 // ============================================================
 //  EXCEL (importación, exportación)
 // ============================================================
@@ -452,6 +471,15 @@ function applyRole() {
   $('#user-name').textContent = state.session.name;
   $('#user-role').textContent = state.session.role;
   $('#user-avatar').textContent = (state.session.name || '?').charAt(0).toUpperCase();
+
+  // Texto y botón de la sección Cargar según el rol
+  if (isMaster) {
+    $('#upload-help').innerHTML = 'Sube la base de la semana. Reemplaza a la anterior: los que continúan <b>conservan sus estados</b>, los nuevos quedan <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b>.';
+    $('#confirm-upload').textContent = 'Cargar base';
+  } else {
+    $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios (Enviado/Aplicado). Se actualizan <b>solo las filas de tus familias</b>; no afecta al resto de la base.';
+    $('#confirm-upload').textContent = 'Guardar mis cambios';
+  }
 }
 
 // ============================================================
@@ -562,6 +590,18 @@ function bindEvents() {
       updateSyncPill();
     } catch (ex) { st.textContent = '✗ ' + ex.message; }
   });
+
+  // Mostrar / copiar token
+  $('#cfg-token-show').addEventListener('click', () => {
+    const f = $('#cfg-token');
+    f.type = f.type === 'password' ? 'text' : 'password';
+  });
+  $('#cfg-token-copy').addEventListener('click', async () => {
+    const v = $('#cfg-token').value;
+    if (!v) { toast('No hay token guardado en este equipo', ''); return; }
+    try { await navigator.clipboard.writeText(v); toast('Token copiado', 'ok'); }
+    catch { toast('No se pudo copiar (cópialo manualmente)', 'err'); }
+  });
 }
 
 // ---------- Carga de archivo ----------
@@ -588,41 +628,42 @@ function handleFile(file) {
 
 async function confirmUpload() {
   if (!state.pending) return;
+  const isMaster = state.session && state.session.role === 'master';
   const btn = $('#confirm-upload');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    // Reconciliación: la base nueva es la verdad vigente. Conserva los estados
-    // de los registros que continúan y archiva los que ya no aparecen.
-    const { result, removed } = reconcileWeekly(state.data, state.pending);
-
-    // Histórico: agrega los removidos y quita los que reaparecieron (vuelven a estar vigentes).
-    const activeKeys = new Set(result.map(rowKey));
-    const hist = mergeHistorico(state.historico, removed).filter(r => !activeKeys.has(rowKey(r)));
-    const histChanged = removed.length > 0 || hist.length !== state.historico.length;
-
-    const where = await saveConsolidado(
-      result,
-      `Base actualizada (${result.length} vigentes, ${removed.length} al histórico)`,
-    );
-    if (histChanged) {
-      await saveHistorico(hist, `Histórico actualizado (${hist.length} registros)`);
+    let where, detalle;
+    if (isMaster) {
+      // MASTER: la base nueva es la verdad vigente. Conserva estados de los que
+      // continúan y archiva los que ya no aparecen.
+      const { result, removed } = reconcileWeekly(state.data, state.pending);
+      const activeKeys = new Set(result.map(rowKey));
+      const hist = mergeHistorico(state.historico, removed).filter(r => !activeKeys.has(rowKey(r)));
+      const histChanged = removed.length > 0 || hist.length !== state.historico.length;
+      where = await saveConsolidado(result, `Base actualizada (${result.length} vigentes, ${removed.length} al histórico)`);
+      if (histChanged) await saveHistorico(hist, `Histórico actualizado (${hist.length} registros)`);
+      detalle = `${result.length} vigentes · ${removed.length} archivados`;
+    } else {
+      // USUARIO: actualiza solo las filas de SUS familias, sin tocar el resto.
+      const { rows, updated, ignored } = patchUserRows(state.data, state.pending, state.session.familias);
+      where = await saveConsolidado(rows, `Cambios de ${state.session.user} (${updated} filas actualizadas)`);
+      detalle = `${updated} filas actualizadas` + (ignored ? ` · ${ignored} ignoradas (otras familias)` : '');
     }
 
     state.pending = null;
     $('#upload-summary').hidden = true;
     $('#file-input').value = '';
-    const detalle = `${result.length} vigentes · ${removed.length} archivados`;
     toast(
       where === 'github'
-        ? `Base guardada en GitHub ✓ (${detalle})`
-        : `Base guardada localmente (${detalle})`,
+        ? `Guardado en GitHub ✓ (${detalle})`
+        : `Guardado localmente (${detalle})`,
       where === 'github' ? 'ok' : '',
     );
     showView('dashboard');
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = 'Cargar base';
+    btn.disabled = false; btn.textContent = isMaster ? 'Cargar base' : 'Guardar mis cambios';
   }
 }
 
