@@ -5,5 +5,12 @@
     "role": "master",
     "active": true,
     "hash": "e7bc2f973afb8dfaf00fadfb19596741108be08ab4a107c6a799c429b684c64a"
+  },
+  {
+    "user": "usuario1",
+    "name": "Usuario de Prueba",
+    "role": "usuario",
+    "active": true,
+    "hash": "dfa7a2273567dcd1efffb9a46308e91c20fa13c44c3441bc69cd6a7869b3f7fd"
   }
 ]
