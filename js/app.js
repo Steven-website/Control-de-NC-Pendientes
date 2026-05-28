@@ -2,7 +2,7 @@
 //  Control de NC Pendientes — App principal
 // ============================================================
 import {
-  COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, withDerived, parseDate, PATHS,
+  COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, withDerived, parseDate, PATHS,
 } from './schema.js';
 import { readParquet, writeParquet } from './parquet.js';
 import * as gh from './github.js';
@@ -42,6 +42,7 @@ function fmtCell(value, col) {
 const state = {
   session: null,    // { user, name, role }
   data: [],         // filas consolidadas (columnas base)
+  historico: [],    // filas que salieron de la base (respaldo)
   users: [],        // usuarios
   pending: null,    // filas pendientes de confirmar carga
 };
@@ -120,18 +121,72 @@ async function saveConsolidado(rows, msg) {
   return 'local';
 }
 
+// ---------- Histórico (respaldo de registros que salieron de la base) ----------
+async function loadHistorico() {
+  let buf = null;
+  try {
+    if (gh.hasToken()) { const f = await gh.getFile(PATHS.historico, true); buf = f && f.content; }
+    if (!buf) { const r = await fetch(PATHS.historico + '?t=' + Date.now()); if (r.ok) buf = await r.arrayBuffer(); }
+  } catch { /* ignora */ }
+
+  if (buf && buf.byteLength) {
+    try { state.historico = await readParquet(buf); }
+    catch (e) { console.error(e); state.historico = LS.get('historico') || []; }
+  } else {
+    state.historico = LS.get('historico') || [];
+  }
+}
+
+async function saveHistorico(rows, msg) {
+  state.historico = rows;
+  LS.set('historico', rows);
+  if (gh.hasToken()) {
+    const buf = await writeParquet(rows);
+    await gh.putFile(PATHS.historico, buf, msg || 'Actualizar histórico');
+    return 'github';
+  }
+  return 'local';
+}
+
 // ============================================================
-//  CONSOLIDACIÓN (merge por clave)
+//  RECONCILIACIÓN (base nueva semanal vs base anterior)
 // ============================================================
 function rowKey(r) {
   return [r['NO_DOCU'], r['NO_LINEA'], r['PK_ARTICULOS']].join('|');
 }
 
-function mergeRows(existing, incoming, replace) {
-  if (replace) return incoming.slice();
-  const map = new Map();
-  for (const r of existing) map.set(rowKey(r), r);
-  for (const r of incoming) map.set(rowKey(r), { ...map.get(rowKey(r)), ...r });
+// ¿El valor de un campo de seguimiento está vacío / por defecto?
+function isEmptyTrack(v) {
+  return v == null || v === '' || v === 'Pendiente';
+}
+
+// Reconcilia la base nueva (incoming) contra la anterior (existing):
+//  - La base nueva es la verdad actual.
+//  - Los registros que ya existían CONSERVAN los estados marcados por el master
+//    (Enviado/Aplicado + fechas) cuando la base nueva no los trae.
+//  - Los registros que ya no aparecen se devuelven en `removed` (van al histórico).
+function reconcileWeekly(existing, incoming) {
+  const oldMap = new Map(existing.map(r => [rowKey(r), r]));
+  const incomingKeys = new Set(incoming.map(rowKey));
+
+  const result = incoming.map(r => {
+    const prev = oldMap.get(rowKey(r));
+    if (!prev) return { ...r };                 // registro nuevo
+    const merged = { ...r };
+    for (const k of CREATED_KEYS) {
+      if (isEmptyTrack(r[k]) && !isEmptyTrack(prev[k])) merged[k] = prev[k];
+    }
+    return merged;
+  });
+
+  const removed = existing.filter(r => !incomingKeys.has(rowKey(r)));
+  return { result, removed };
+}
+
+// Une el histórico actual con los registros removidos (dedupe por clave, conserva el último).
+function mergeHistorico(historico, removed) {
+  const map = new Map(historico.map(r => [rowKey(r), r]));
+  for (const r of removed) map.set(rowKey(r), r);
   return [...map.values()];
 }
 
@@ -280,6 +335,44 @@ function renderConsolidado() {
 }
 
 // ============================================================
+//  RENDER — Histórico
+// ============================================================
+let histFilter = { q: '' };
+
+function renderHistorico() {
+  const head = $('#historico-head');
+  const body = $('#historico-body');
+  head.innerHTML = '<tr>' + ALL_COLUMNS.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+
+  const q = histFilter.q.toLowerCase();
+  let rows = state.historico.map(withDerived);
+  if (q) rows = rows.filter(r => ALL_COLUMNS.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
+
+  $('#historico-count').textContent = state.historico.length.toLocaleString('es-CR');
+  $('#historico-empty').hidden = state.historico.length > 0;
+  body.innerHTML = rows.slice(0, 500).map(r => '<tr>' +
+    ALL_COLUMNS.map(c => `<td>${fmtCell(r[c.key], c)}</td>`).join('') + '</tr>').join('');
+  if (rows.length > 500) {
+    body.innerHTML += `<tr><td colspan="${ALL_COLUMNS.length}" class="muted" style="text-align:center">Mostrando 500 de ${rows.length} filas. Usa la búsqueda o exporta el archivo completo.</td></tr>`;
+  }
+}
+
+function exportHistoricoExcel() {
+  if (!state.historico.length) { toast('El histórico está vacío', ''); return; }
+  const rows = state.historico.map(withDerived);
+  const headers = ALL_COLUMNS.map(c => c.key);
+  const aoa = [headers, ...rows.map(r => headers.map(h => {
+    const col = ALL_COLUMNS.find(c => c.key === h);
+    return col.type === 'date' ? isoDate(r[h]) : r[h];
+  }))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Historico');
+  XLSX.writeFile(wb, `Historico_NC_${isoDate(new Date())}.xlsx`);
+  toast('Histórico exportado a Excel', 'ok');
+}
+
+// ============================================================
 //  RENDER — Usuarios
 // ============================================================
 function renderUsuarios() {
@@ -300,7 +393,7 @@ function renderUsuarios() {
 // ============================================================
 //  NAVEGACIÓN / VISTAS
 // ============================================================
-const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', usuarios: 'Control de Usuarios', config: 'Configuración' };
+const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', historico: 'Histórico', usuarios: 'Control de Usuarios', config: 'Configuración' };
 
 function showView(name) {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
@@ -308,6 +401,7 @@ function showView(name) {
   $('#page-title').textContent = TITLES[name] || name;
   if (name === 'dashboard') renderDashboard();
   if (name === 'consolidado') renderConsolidado();
+  if (name === 'historico') renderHistorico();
   if (name === 'usuarios') renderUsuarios();
   if (name === 'config') loadConfigForm();
 }
@@ -379,6 +473,10 @@ function bindEvents() {
   $('#search-input').addEventListener('input', e => { consFilter.q = e.target.value; renderConsolidado(); });
   $('#filter-tipo').addEventListener('change', e => { consFilter.tipo = e.target.value; renderConsolidado(); });
 
+  // Histórico
+  $('#hist-search').addEventListener('input', e => { histFilter.q = e.target.value; renderHistorico(); });
+  $('#export-hist-excel').addEventListener('click', exportHistoricoExcel);
+
   // Carga de archivo
   const dz = $('#dropzone'), fi = $('#file-input');
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
@@ -449,14 +547,43 @@ async function confirmUpload() {
   if (!state.pending) return;
   const replace = $('#replace-mode').checked;
   const btn = $('#confirm-upload');
-  btn.disabled = true; btn.textContent = 'Consolidando...';
+  btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    const merged = mergeRows(state.data, state.pending, replace);
-    const where = await saveConsolidado(merged, `Carga consolidada (${state.pending.length} filas)`);
+    let result, removed;
+    if (replace) {
+      // Reemplazo total: la base nueva es todo; lo anterior va completo al histórico.
+      result = state.pending.slice();
+      removed = state.data.slice();
+    } else {
+      // Reconciliación semanal: conserva estados de los que continúan,
+      // archiva los que ya no aparecen.
+      ({ result, removed } = reconcileWeekly(state.data, state.pending));
+    }
+
+    // Histórico: agrega los removidos y quita los que reaparecieron (vuelven a estar vigentes).
+    const activeKeys = new Set(result.map(rowKey));
+    const hist = mergeHistorico(state.historico, removed).filter(r => !activeKeys.has(rowKey(r)));
+    const histChanged = removed.length > 0 || hist.length !== state.historico.length;
+
+    const where = await saveConsolidado(
+      result,
+      `Base actualizada (${result.length} vigentes, ${removed.length} al histórico)`,
+    );
+    if (histChanged) {
+      await saveHistorico(hist, `Histórico actualizado (${hist.length} registros)`);
+    }
+
     state.pending = null;
     $('#upload-summary').hidden = true;
     $('#file-input').value = '';
-    toast(where === 'github' ? 'Consolidado guardado en GitHub ✓' : 'Consolidado guardado localmente (sin token)', where === 'github' ? 'ok' : '');
+    $('#replace-mode').checked = false;
+    const detalle = `${result.length} vigentes · ${removed.length} archivados`;
+    toast(
+      where === 'github'
+        ? `Base guardada en GitHub ✓ (${detalle})`
+        : `Base guardada localmente (${detalle})`,
+      where === 'github' ? 'ok' : '',
+    );
     showView('dashboard');
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
@@ -526,6 +653,7 @@ async function enterApp() {
   updateSyncPill();
   showView('dashboard');
   await loadConsolidado();
+  await loadHistorico();
   showView('dashboard');
 }
 
