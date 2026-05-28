@@ -92,8 +92,8 @@ export const ALL_COLUMNS = [...DERIVED, ...COLUMNS];
 
 // Rutas de datos dentro del repositorio
 export const PATHS = {
-  consolidado: 'data/consolidado.parquet',
-  historico: 'data/historico.parquet',
+  consolidado: 'data/consolidado.json',
+  historico: 'data/historico.json',
   usuarios: 'data/usuarios.json',
 };
 

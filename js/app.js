@@ -5,7 +5,6 @@ import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
 } from './schema.js';
-import { readParquet, writeParquet } from './parquet.js';
 import * as gh from './github.js';
 
 // ---------- Helpers DOM ----------
@@ -97,14 +96,14 @@ async function saveUsers() {
 //  DATOS CONSOLIDADOS
 // ============================================================
 async function loadConsolidado() {
-  let buf = null;
+  let txt = null;
   try {
-    if (gh.hasToken()) { const f = await gh.getFile(PATHS.consolidado, true); buf = f && f.content; }
-    if (!buf) { const r = await fetch(PATHS.consolidado + '?t=' + Date.now()); if (r.ok) buf = await r.arrayBuffer(); }
+    if (gh.hasToken()) { const f = await gh.getFile(PATHS.consolidado, false); txt = f && f.content; }
+    if (!txt) { const r = await fetch(PATHS.consolidado + '?t=' + Date.now()); if (r.ok) txt = await r.text(); }
   } catch { /* ignora */ }
 
-  if (buf && buf.byteLength) {
-    try { state.data = await readParquet(buf); }
+  if (txt) {
+    try { state.data = JSON.parse(txt) || []; }
     catch (e) { console.error(e); state.data = LS.get('data') || []; }
   } else {
     state.data = LS.get('data') || [];
@@ -115,8 +114,7 @@ async function saveConsolidado(rows, msg) {
   state.data = rows;
   LS.set('data', rows);
   if (gh.hasToken()) {
-    const buf = await writeParquet(rows);            // guarda solo columnas base
-    await gh.putFile(PATHS.consolidado, buf, msg || 'Actualizar consolidado');
+    await gh.putFile(PATHS.consolidado, JSON.stringify(rows), msg || 'Actualizar consolidado');
     return 'github';
   }
   return 'local';
@@ -124,14 +122,14 @@ async function saveConsolidado(rows, msg) {
 
 // ---------- Histórico (respaldo de registros que salieron de la base) ----------
 async function loadHistorico() {
-  let buf = null;
+  let txt = null;
   try {
-    if (gh.hasToken()) { const f = await gh.getFile(PATHS.historico, true); buf = f && f.content; }
-    if (!buf) { const r = await fetch(PATHS.historico + '?t=' + Date.now()); if (r.ok) buf = await r.arrayBuffer(); }
+    if (gh.hasToken()) { const f = await gh.getFile(PATHS.historico, false); txt = f && f.content; }
+    if (!txt) { const r = await fetch(PATHS.historico + '?t=' + Date.now()); if (r.ok) txt = await r.text(); }
   } catch { /* ignora */ }
 
-  if (buf && buf.byteLength) {
-    try { state.historico = await readParquet(buf); }
+  if (txt) {
+    try { state.historico = JSON.parse(txt) || []; }
     catch (e) { console.error(e); state.historico = LS.get('historico') || []; }
   } else {
     state.historico = LS.get('historico') || [];
@@ -142,8 +140,7 @@ async function saveHistorico(rows, msg) {
   state.historico = rows;
   LS.set('historico', rows);
   if (gh.hasToken()) {
-    const buf = await writeParquet(rows);
-    await gh.putFile(PATHS.historico, buf, msg || 'Actualizar histórico');
+    await gh.putFile(PATHS.historico, JSON.stringify(rows), msg || 'Actualizar histórico');
     return 'github';
   }
   return 'local';
@@ -322,21 +319,6 @@ async function exportExcel() {
   } catch (e) {
     toast('Error al generar Excel: ' + e.message, 'err');
   }
-}
-
-async function exportParquet() {
-  try {
-    const rows = visibleData().map(withDerived);         // incluye ANTIGÜEDAD recalculada hoy
-    const keys = ALL_COLUMNS.map(c => c.key);
-    const buf = await writeParquet(rows, keys);
-    const blob = new Blob([buf], { type: 'application/octet-stream' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `Consolidado_NC_${isoDate(new Date())}.parquet`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast('Consolidado exportado a Parquet', 'ok');
-  } catch (e) { toast('Error al generar Parquet: ' + e.message, 'err'); }
 }
 
 // ============================================================
@@ -619,7 +601,6 @@ function bindEvents() {
   // Export / descarga de data
   $('#export-excel').addEventListener('click', exportExcel);
   $('#download-mydata').addEventListener('click', exportExcel);
-  $('#export-parquet').addEventListener('click', exportParquet);
 
   // Filtros consolidado
   $('#search-input').addEventListener('input', e => { consFilter.q = e.target.value; renderConsolidado(); });
