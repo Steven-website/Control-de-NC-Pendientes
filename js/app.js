@@ -2,7 +2,8 @@
 //  Control de NC Pendientes — App principal
 // ============================================================
 import {
-  COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, withDerived, parseDate, PATHS,
+  COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
+  withDerived, parseDate, PATHS,
 } from './schema.js';
 import { readParquet, writeParquet } from './parquet.js';
 import * as gh from './github.js';
@@ -229,18 +230,67 @@ function parseExcel(arrayBuffer) {
   }).filter(r => r['NO_DOCU'] != null || r['NO_ARTI'] != null); // descarta filas vacías
 }
 
-function exportExcel() {
-  const rows = visibleData().map(withDerived);
-  const headers = ALL_COLUMNS.map(c => c.key);
-  const aoa = [headers, ...rows.map(r => headers.map(h => {
-    const col = ALL_COLUMNS.find(c => c.key === h);
-    return col.type === 'date' ? isoDate(r[h]) : r[h];
-  }))];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Consolidado');
-  XLSX.writeFile(wb, `Consolidado_NC_${isoDate(new Date())}.xlsx`);
-  toast('Consolidado exportado a Excel', 'ok');
+// Descarga en Excel con: orden (SQL → creadas), filtros, listas desplegables en
+// las columnas de selección, y bloqueo de la información existente (solo las
+// columnas creadas quedan editables). Usa ExcelJS.
+async function exportExcel() {
+  if (typeof ExcelJS === 'undefined') {
+    toast('No se pudo cargar el generador de Excel (revisa tu conexión)', 'err');
+    return;
+  }
+  try {
+    const rows = visibleData().map(withDerived);
+    const cols = EXPORT_COLUMNS;                       // SQL → ANTIGÜEDAD → creadas
+    const editable = new Set(CREATED_COLUMNS.map(c => c.key));   // solo estas se pueden editar
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Datos');
+    // Encabezados = la CLAVE de columna (igual que el Excel del SQL) para que la
+    // recarga vuelva a calzar.
+    ws.columns = cols.map(c => ({ header: c.key, key: c.key, width: Math.min(28, Math.max(12, c.key.length + 4)) }));
+    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+
+    rows.forEach(r => {
+      const vals = {};
+      cols.forEach(c => { vals[c.key] = (c.type === 'date') ? (isoDate(r[c.key]) || null) : (r[c.key] ?? null); });
+      ws.addRow(vals);
+    });
+
+    // Bloqueo + listas desplegables (solo filas de datos, no el encabezado)
+    const lastRow = ws.rowCount;
+    cols.forEach((c, i) => {
+      if (!editable.has(c.key)) return;                // las del SQL/Antigüedad quedan bloqueadas (default)
+      const colNum = i + 1;
+      for (let rn = 2; rn <= lastRow; rn++) {
+        const cell = ws.getCell(rn, colNum);
+        cell.protection = { locked: false };           // editable
+        if (c.type === 'select' && c.options) {
+          cell.dataValidation = {
+            type: 'list', allowBlank: true,
+            formulae: ['"' + c.options.join(',') + '"'],
+            showErrorMessage: true, errorTitle: 'Valor no válido',
+            error: 'Elige una opción de la lista.',
+          };
+        }
+      }
+    });
+
+    // Protege la hoja pero permite filtrar/ordenar y editar las celdas desbloqueadas
+    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, autoFilter: true, sort: true });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Control_NC_${isoDate(new Date())}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast('Excel descargado', 'ok');
+  } catch (e) {
+    toast('Error al generar Excel: ' + e.message, 'err');
+  }
 }
 
 async function exportParquet() {

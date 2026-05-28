@@ -37,6 +37,11 @@ export const COLUMN_KEYS = COLUMNS.map(c => c.key);
 // que ya existían, para no perder el trabajo manual.
 export const CREATED_KEYS = COLUMNS.filter(c => c.created).map(c => c.key);
 
+// Columnas del SQL (no creadas) y columnas creadas por el sistema (objetos),
+// para ordenar y dar formato a las descargas.
+export const SQL_COLUMNS = COLUMNS.filter(c => !c.created);
+export const CREATED_COLUMNS = COLUMNS.filter(c => c.created);
+
 // ---- Columnas DERIVADAS (calculadas, no se almacenan) ----
 // Se recalculan cada vez que el usuario visualiza o DESCARGA los datos,
 // porque dependen de la fecha actual.
@@ -57,6 +62,9 @@ export const DERIVED = [
 ];
 
 export const DERIVED_KEYS = DERIVED.map(c => c.key);
+
+// Orden de las descargas: primero las columnas del SQL, luego ANTIGÜEDAD y las creadas.
+export const EXPORT_COLUMNS = [...SQL_COLUMNS, ...DERIVED, ...CREATED_COLUMNS];
 
 // Convierte un valor de fecha (ISO string, Date o serial de Excel) a Date.
 export function parseDate(v) {
