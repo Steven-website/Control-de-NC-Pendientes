@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Control de NC Pendientes</title>
+  <meta name="description" content="Sistema de control de No Conformidades pendientes" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- ===================== LOGIN ===================== -->
+  <section id="login-view" class="login-view">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-logo">NC</div>
+        <h1>Control de NC Pendientes</h1>
+        <p>Sistema de gestión de No Conformidades</p>
+      </div>
+      <form id="login-form" class="login-form" autocomplete="off">
+        <label>
+          <span>Usuario</span>
+          <input type="text" id="login-user" placeholder="Ingrese su usuario" required />
+        </label>
+        <label>
+          <span>Contraseña</span>
+          <input type="password" id="login-pass" placeholder="Ingrese su contraseña" required />
+        </label>
+        <p id="login-error" class="login-error" hidden></p>
+        <button type="submit" class="btn btn-primary btn-block">Ingresar</button>
+      </form>
+      <p class="login-hint">Acceso inicial Master · usuario <b>master</b> · clave <b>master123</b></p>
+    </div>
+    <footer class="login-foot">© <span id="year"></span> Control de NC Pendientes</footer>
+  </section>
+
+  <!-- ===================== APP ===================== -->
+  <div id="app-view" class="app-shell" hidden>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="login-logo sm">NC</div>
+        <div>
+          <strong>Control NC</strong>
+          <small>Pendientes</small>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-ico">📊</span> Tablero
+        </button>
+        <button class="nav-item" data-view="consolidado">
+          <span class="nav-ico">📋</span> Consolidado
+        </button>
+        <button class="nav-item" data-view="cargar">
+          <span class="nav-ico">📤</span> Cargar / Plantilla
+        </button>
+        <button class="nav-item admin-only" data-view="usuarios" hidden>
+          <span class="nav-ico">👥</span> Usuarios
+        </button>
+        <button class="nav-item admin-only" data-view="config" hidden>
+          <span class="nav-ico">⚙️</span> Configuración
+        </button>
+      </nav>
+      <div class="sidebar-user">
+        <div class="avatar" id="user-avatar">?</div>
+        <div class="sidebar-user-info">
+          <strong id="user-name">—</strong>
+          <small id="user-role">—</small>
+        </div>
+        <button id="logout-btn" class="icon-btn" title="Cerrar sesión">⎋</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <h2 id="page-title">Tablero</h2>
+        <div class="topbar-actions">
+          <span id="sync-status" class="sync-pill" title="Estado del repositorio">● Local</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- DASHBOARD -->
+        <section class="view" data-view="dashboard">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-ico kpi-blue">Σ</div>
+              <div><span class="kpi-num" id="kpi-total">0</span><span class="kpi-label">Total Líneas</span></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-ico kpi-amber">⏳</div>
+              <div><span class="kpi-num" id="kpi-pend">0</span><span class="kpi-label">Pendientes CxP</span></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-ico kpi-green">✓</div>
+              <div><span class="kpi-num" id="kpi-env">0</span><span class="kpi-label">Enviados CxP</span></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-ico kpi-cyan">₡</div>
+              <div><span class="kpi-num" id="kpi-costo">0</span><span class="kpi-label">Costo Total</span></div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-ico kpi-red">📄</div>
+              <div><span class="kpi-num" id="kpi-docs">0</span><span class="kpi-label">Documentos</span></div>
+            </div>
+          </div>
+
+          <div class="panel-grid">
+            <div class="panel">
+              <h3>Por Tipo de Documento</h3>
+              <div id="chart-tipo" class="bars"></div>
+            </div>
+            <div class="panel">
+              <h3>Top Familias</h3>
+              <div id="chart-familia" class="bars"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Movimientos recientes</h3>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table compact">
+                <thead>
+                  <tr><th>No. Docu</th><th>Fecha Mov.</th><th>Tipo Doc</th><th>Proveedor</th><th>Descripción</th><th>Costo Total</th></tr>
+                </thead>
+                <tbody id="proximas-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- CONSOLIDADO -->
+        <section class="view" data-view="consolidado" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Base Consolidada de No Conformidades</h3>
+              <div class="panel-head-actions">
+                <input type="search" id="search-input" class="search" placeholder="Buscar..." />
+                <select id="filter-tipo" class="select">
+                  <option value="">Todos los tipos de doc</option>
+                </select>
+                <button id="export-excel" class="btn btn-light">⬇ Excel</button>
+                <button id="export-parquet" class="btn btn-light">⬇ Parquet</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead id="consolidado-head"></thead>
+                <tbody id="consolidado-body"></tbody>
+              </table>
+            </div>
+            <p id="consolidado-empty" class="empty-state" hidden>No hay datos consolidados todavía. Sube un Excel desde "Cargar / Plantilla".</p>
+          </div>
+        </section>
+
+        <!-- CARGAR -->
+        <section class="view" data-view="cargar" hidden>
+          <div class="steps">
+            <div class="step"><span class="step-n">1</span><div><strong>Descarga la plantilla</strong><small>Excel con las columnas correctas</small></div></div>
+            <div class="step"><span class="step-n">2</span><div><strong>Llena tus NC</strong><small>Trabaja el archivo en tu PC</small></div></div>
+            <div class="step"><span class="step-n">3</span><div><strong>Sube el archivo</strong><small>Se consolida automáticamente</small></div></div>
+          </div>
+
+          <div class="cargar-grid">
+            <div class="panel">
+              <h3>📥 Descargar plantilla</h3>
+              <p class="muted">Descarga el formato oficial en Excel para registrar las No Conformidades.</p>
+              <button id="download-template" class="btn btn-primary">Descargar plantilla Excel</button>
+            </div>
+
+            <div class="panel">
+              <h3>📤 Cargar Excel trabajado</h3>
+              <p class="muted">Arrastra o selecciona tu archivo. El sistema lo valida y consolida en Parquet.</p>
+              <div id="dropzone" class="dropzone">
+                <span class="dz-ico">📄</span>
+                <p>Arrastra tu archivo aquí o <label class="link" for="file-input">selecciónalo</label></p>
+                <small>Formatos: .xlsx, .xls</small>
+                <input type="file" id="file-input" accept=".xlsx,.xls" hidden />
+              </div>
+              <div id="upload-summary" class="upload-summary" hidden></div>
+              <div class="row gap" style="margin-top:12px">
+                <label class="check"><input type="checkbox" id="replace-mode" /> Reemplazar base (en vez de agregar)</label>
+              </div>
+              <button id="confirm-upload" class="btn btn-success" disabled>Consolidar y guardar</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- USUARIOS (admin) -->
+        <section class="view" data-view="usuarios" hidden>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Control de Usuarios</h3>
+              <button id="add-user-btn" class="btn btn-primary">+ Nuevo usuario</button>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead><tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
+                <tbody id="usuarios-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- CONFIG (admin) -->
+        <section class="view" data-view="config" hidden>
+          <div class="panel">
+            <h3>Configuración de GitHub (persistencia)</h3>
+            <p class="muted">Para guardar la base consolidada y los usuarios directamente en el repositorio se requiere un token de acceso personal (PAT) con permiso de escritura. Se almacena solo en este navegador.</p>
+            <form id="config-form" class="config-form">
+              <label><span>Owner (usuario/org)</span><input type="text" id="cfg-owner" placeholder="Steven-website" /></label>
+              <label><span>Repositorio</span><input type="text" id="cfg-repo" placeholder="Control-de-NC-Pendientes" /></label>
+              <label><span>Rama</span><input type="text" id="cfg-branch" placeholder="main" /></label>
+              <label><span>Token (PAT)</span><input type="password" id="cfg-token" placeholder="ghp_..." /></label>
+              <div class="row gap">
+                <button type="submit" class="btn btn-primary">Guardar configuración</button>
+                <button type="button" id="test-conn" class="btn btn-light">Probar conexión</button>
+              </div>
+              <p id="config-status" class="muted"></p>
+            </form>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===================== MODAL USUARIO ===================== -->
+  <div id="user-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="user-modal-title">Nuevo usuario</h3><button class="icon-btn" data-close>✕</button></div>
+      <form id="user-form" class="modal-body">
+        <input type="hidden" id="uf-original" />
+        <label><span>Usuario</span><input type="text" id="uf-user" required /></label>
+        <label><span>Nombre completo</span><input type="text" id="uf-name" required /></label>
+        <label><span>Rol</span>
+          <select id="uf-role">
+            <option value="usuario">Usuario</option>
+            <option value="master">Master</option>
+          </select>
+        </label>
+        <label><span>Contraseña <small id="uf-pass-hint">(dejar vacío para no cambiar)</small></span><input type="password" id="uf-pass" /></label>
+        <label class="check"><input type="checkbox" id="uf-active" checked /> Activo</label>
+        <div class="row gap end">
+          <button type="button" class="btn btn-light" data-close>Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Libs -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

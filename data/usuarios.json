@@ -1,0 +1,9 @@
+[
+  {
+    "user": "master",
+    "name": "Administrador Master",
+    "role": "master",
+    "active": true,
+    "hash": "e7bc2f973afb8dfaf00fadfb19596741108be08ab4a107c6a799c429b684c64a"
+  }
+]
