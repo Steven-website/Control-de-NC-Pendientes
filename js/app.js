@@ -277,8 +277,33 @@ async function exportExcel() {
       }
     });
 
-    // Protege la hoja pero permite filtrar/ordenar y editar las celdas desbloqueadas
-    await ws.protect('', { selectLockedCells: true, selectUnlockedCells: true, autoFilter: true, sort: true });
+    // Color de estado (formato condicional): amarillo claro = Enviado/Aplicado,
+    // rojo claro = Pendiente. Cambia solo al elegir el valor en la lista.
+    if (lastRow >= 2) {
+      cols.forEach((c, i) => {
+        if (c.type !== 'select' || !c.options || !editable.has(c.key)) return;
+        const letter = ws.getColumn(i + 1).letter;
+        const ref = `${letter}2:${letter}${lastRow}`;
+        const positivo = c.options.find(o => o !== 'Pendiente');
+        ws.addConditionalFormatting({
+          ref,
+          rules: [
+            { type: 'cellIs', operator: 'equal', priority: 1, formulae: [`"${positivo}"`],
+              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFF2CC' }, fgColor: { argb: 'FFFFF2CC' } } } },
+            { type: 'cellIs', operator: 'equal', priority: 2, formulae: ['"Pendiente"'],
+              style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFFFC7CE' }, fgColor: { argb: 'FFFFC7CE' } } } },
+          ],
+        });
+      });
+    }
+
+    // Protege la hoja pero permite filtrar/ordenar, editar celdas desbloqueadas
+    // y redimensionar (expandir/disminuir) columnas y filas.
+    await ws.protect('', {
+      selectLockedCells: true, selectUnlockedCells: true,
+      autoFilter: true, sort: true,
+      formatColumns: true, formatRows: true, formatCells: true,
+    });
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
