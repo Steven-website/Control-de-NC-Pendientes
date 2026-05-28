@@ -306,7 +306,7 @@ function renderDashboard() {
   $('#kpi-costo').textContent = '₡' + costo.toLocaleString('es-CR', { maximumFractionDigits: 0 });
   $('#kpi-docs').textContent  = docs.toLocaleString('es-CR');
 
-  renderBars($('#chart-tipo'), groupCount(d, 'TIPO DOC'));
+  renderBars($('#chart-tipo'), groupCount(d, 'PROVEEDOR'));
   renderBars($('#chart-familia'), groupCount(d, 'FAMILIA'));
 
   // Movimientos recientes (por fecha desc)
