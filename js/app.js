@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js';
-import * as gh from './github.js';
+} from './schema.js?v=2';
+import * as gh from './github.js?v=2';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
