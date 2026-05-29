@@ -36,7 +36,7 @@
     "name": "Stward",
     "role": "usuario",
     "active": true,
-    "familias": ["AUTOMOTRIZ", "ELECTRODOMESTICOS", "FERRETERIA", "MUEBLES"],
+    "familias": ["ELECTRODOMESTICOS", "FERRETERIA", "MUEBLES"],
     "hash": "8a3c467a2da2610c2bdb3eb65c5e73b6eb40abdf7f449b9648c72f501843eb3f"
   },
   {
@@ -60,7 +60,7 @@
     "name": "Yordan",
     "role": "usuario",
     "active": true,
-    "familias": ["DEPORTE"],
+    "familias": ["AUTOMOTRIZ", "DEPORTE", "JUGUETERIA"],
     "hash": "c5bdf3e0ac196cc160e92aaca1d8147c7a774ce22d469dcf6adc3a86185de15c"
   },
   {
