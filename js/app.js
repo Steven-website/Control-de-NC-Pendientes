@@ -622,8 +622,8 @@ function applyRole() {
   // Sección Cargar según el rol
   $('#download-mydata').hidden = false;   // todos pueden descargar su data
   if (isMaster) {
-    $('#cargar-intro').innerHTML = 'Como master puedes <b>Cargar base nueva</b> (semanal) o <b>Guardar cambios</b> (editar estados sin reemplazar).';
-    $('#upload-help').innerHTML = '<b>Cargar base nueva</b>: reemplaza la base y archiva lo que ya no viene. · <b>Guardar cambios</b>: solo actualiza estados, sin borrar ni reemplazar.';
+    $('#cargar-intro').innerHTML = 'Sube aquí la <b>base original</b> que actualizas <b>cada semana</b> → botón verde <b>«Cargar base original (semanal)»</b>. El botón azul <b>«Guardar cambios»</b> solo edita estados, sin reemplazar la base.';
+    $('#upload-help').innerHTML = '<b>Cargar base original (semanal)</b>: reemplaza la base con la del SQL y archiva lo que ya no viene (Histórico). · <b>Guardar cambios</b>: solo actualiza estados (Enviado/Aplicado/Nota), sin borrar ni reemplazar.';
   } else {
     $('#cargar-intro').innerHTML = '1) Descarga tu data · 2) edítala en Excel (Enviado/Aplicado) · 3) súbela.';
     $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios. Se actualizan <b>solo las filas de tus familias</b>; no borra ni afecta al resto.';
@@ -636,7 +636,7 @@ function resetUploadButtons() {
   const isMaster = state.session && state.session.role === 'master';
   const has = !!(state.pending && state.pending.length);
   const b1 = $('#confirm-upload'), b2 = $('#confirm-upload-patch');
-  b1.textContent = isMaster ? 'Cargar base nueva' : 'Guardar mis cambios';
+  b1.textContent = isMaster ? 'Cargar base original (semanal)' : 'Guardar mis cambios';
   b1.disabled = !has;
   b2.hidden = !isMaster;          // segundo botón (patch) solo para master
   b2.textContent = 'Guardar cambios';
