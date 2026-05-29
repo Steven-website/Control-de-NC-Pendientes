@@ -111,6 +111,28 @@ async function sbUpsert(rows, archivado) {
   }
 }
 
+// ---------- Actividad de usuarios (última conexión / guardados) ----------
+async function sbLogConexion(usuario) {
+  try {
+    await sb().from('actividad_usuarios')
+      .upsert({ usuario, ultima_conexion: new Date().toISOString() }, { onConflict: 'usuario' });
+  } catch (e) { console.error('actividad conexión:', e); }
+}
+async function sbLogGuardado(usuario) {
+  try {
+    const c = sb();
+    const { data } = await c.from('actividad_usuarios').select('guardados').eq('usuario', usuario).maybeSingle();
+    const n = (data && data.guardados) || 0;
+    await c.from('actividad_usuarios')
+      .upsert({ usuario, ultimo_guardado: new Date().toISOString(), guardados: n + 1 }, { onConflict: 'usuario' });
+  } catch (e) { console.error('actividad guardado:', e); }
+}
+async function sbActividad() {
+  const { data, error } = await sb().from('actividad_usuarios').select('*');
+  if (error) throw new Error(error.message);
+  return data || [];
+}
+
 // ---------- Hash de contraseña ----------
 async function hashPassword(pw) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pw));
@@ -522,34 +544,37 @@ function exportHistoricoExcel() {
 async function renderActividad() {
   const body = $('#actividad-body');
   const empty = $('#actividad-empty');
-  if (!gh.hasToken()) {
+  empty.hidden = true;
+  body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center">Cargando…</td></tr>';
+  let act = [];
+  try { act = await sbActividad(); }
+  catch (ex) {
     body.innerHTML = '';
     empty.hidden = false;
-    empty.textContent = 'Configura el token de GitHub (en Configuración) para ver el historial de cambios.';
+    empty.textContent = 'No se pudo cargar la actividad: ' + ex.message;
     return;
   }
-  empty.hidden = true;
-  body.innerHTML = '<tr><td colspan="3" class="muted" style="text-align:center">Cargando…</td></tr>';
-  try {
-    const commits = await gh.listCommits(PATHS.consolidado, 30);
-    if (!commits.length) {
-      body.innerHTML = '';
-      empty.hidden = false;
-      empty.textContent = 'Todavía no hay cambios registrados en la base.';
-      return;
-    }
-    body.innerHTML = commits.map(c => {
-      const d = new Date(c.commit.author.date);
-      const fecha = `${d.toLocaleDateString('es-CR')} ${d.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })}`;
-      const autor = (c.commit.author && c.commit.author.name) || (c.author && c.author.login) || '—';
-      const msg = (c.commit.message || '').split('\n')[0];
-      return `<tr><td>${fecha}</td><td>${autor}</td><td>${msg}</td></tr>`;
-    }).join('');
-  } catch (ex) {
-    body.innerHTML = '';
-    empty.hidden = false;
-    empty.textContent = 'No se pudo cargar el historial: ' + ex.message;
-  }
+  const map = new Map(act.map(a => [a.usuario, a]));
+  const now = Date.now();
+  const fmtDT = (s) => {
+    if (!s) return '—';
+    const d = new Date(s);
+    return `${d.toLocaleDateString('es-CR')} ${d.toLocaleTimeString('es-CR', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  body.innerHTML = state.users.map(u => {
+    const a = map.get(u.user) || {};
+    const conx = a.ultima_conexion ? new Date(a.ultima_conexion).getTime() : 0;
+    const stale = !conx || (now - conx) > 7 * 86400000;   // 7 días o nunca
+    const rojo = stale ? ' style="color:#b91c1c;font-weight:600"' : '';
+    return `<tr>
+      <td${rojo}>${u.user}</td>
+      <td>${u.role}</td>
+      <td>${(u.familias || []).join(', ')}</td>
+      <td${rojo}>${fmtDT(a.ultima_conexion)}</td>
+      <td>${fmtDT(a.ultimo_guardado)}</td>
+      <td>${a.guardados || 0}</td>
+    </tr>`;
+  }).join('');
 }
 
 // ============================================================
@@ -820,6 +845,7 @@ async function confirmUpload(mode) {
       detalle = `${changed.length} filas actualizadas`;
     }
 
+    await sbLogGuardado(state.session.user);   // registra el guardado
     await loadConsolidado();
     await loadHistorico();
     state.pending = null;
@@ -909,6 +935,7 @@ async function enterApp() {
   $('#app-view').hidden = false;
   applyRole();
   updateSyncPill();
+  sbLogConexion(state.session.user);   // registra la conexión (no bloquea)
   showView('dashboard');
   await loadConsolidado();
   await loadHistorico();

@@ -213,13 +213,13 @@
         <section class="view" data-view="actividad" hidden>
           <div class="panel">
             <div class="panel-head">
-              <h3>Actividad · cambios en la base</h3>
+              <h3>Actividad de usuarios</h3>
               <button id="actividad-refresh" class="btn btn-light">↻ Actualizar</button>
             </div>
-            <p class="muted">Historial de subidas/ajustes a la base (tomado del repositorio). Cada fila es un guardado: fecha, quién lo hizo y un resumen del cambio.</p>
+            <p class="muted">Última conexión y guardados de cada usuario. En rojo, quienes no se conectan hace 7 días o más (o nunca).</p>
             <div class="table-wrap">
               <table class="data-table">
-                <thead><tr><th>Fecha</th><th>Autor</th><th>Descripción</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Rol</th><th>Familias</th><th>Última conexión</th><th>Último guardado</th><th>Guardados</th></tr></thead>
                 <tbody id="actividad-body"></tbody>
               </table>
             </div>
