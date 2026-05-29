@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=7" />
 </head>
 <body>
   <!-- ===================== LOGIN ===================== -->
@@ -75,6 +75,7 @@
           <strong id="user-name">—</strong>
           <small id="user-role">—</small>
         </div>
+        <button id="change-pass-btn" class="icon-btn" title="Cambiar mi contraseña">🔑</button>
         <button id="logout-btn" class="icon-btn" title="Cerrar sesión">⎋</button>
       </div>
     </aside>
@@ -215,7 +216,7 @@
             <p class="muted">Última conexión y guardados de cada usuario. En rojo, quienes no se conectan hace 7 días o más (o nunca).</p>
             <div class="table-wrap">
               <table class="data-table">
-                <thead><tr><th>Usuario</th><th>Rol</th><th>Familias</th><th>Última conexión</th><th>Último guardado</th><th>Guardados</th></tr></thead>
+                <thead><tr><th>Usuario</th><th>Rol</th><th>Familias</th><th>Última conexión</th><th>Último guardado</th><th>Qué hizo</th><th>Guardados</th></tr></thead>
                 <tbody id="actividad-body"></tbody>
               </table>
             </div>
@@ -298,6 +299,22 @@
     </div>
   </div>
 
+  <!-- ===================== MODAL CONTRASEÑA ===================== -->
+  <div id="pass-modal" class="modal" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><h3 id="pass-modal-title">Cambiar contraseña</h3><button class="icon-btn" data-close-pass>✕</button></div>
+      <form id="pass-form" class="modal-body">
+        <p id="pass-msg" class="muted"></p>
+        <label><span>Nueva contraseña</span><input type="password" id="pf-new" minlength="4" required /></label>
+        <label><span>Confirmar contraseña</span><input type="password" id="pf-confirm" minlength="4" required /></label>
+        <div class="row gap end">
+          <button type="button" class="btn btn-light" data-close-pass>Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar contraseña</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast" class="toast" hidden></div>
 
@@ -305,6 +322,6 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="js/app.js?v=6"></script>
+  <script type="module" src="js/app.js?v=7"></script>
 </body>
 </html>

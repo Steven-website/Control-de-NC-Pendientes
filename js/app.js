@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=6';
-import * as gh from './github.js?v=6';
+} from './schema.js?v=7';
+import * as gh from './github.js?v=7';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -119,13 +119,13 @@ async function sbLogConexion(usuario) {
       .upsert({ usuario, ultima_conexion: new Date().toISOString() }, { onConflict: 'usuario' });
   } catch (e) { console.error('actividad conexión:', e); }
 }
-async function sbLogGuardado(usuario) {
+async function sbLogGuardado(usuario, detalle) {
   try {
     const c = sb();
     const { data } = await c.from('actividad_usuarios').select('guardados').eq('usuario', usuario).maybeSingle();
     const n = (data && data.guardados) || 0;
     await c.from('actividad_usuarios')
-      .upsert({ usuario, ultimo_guardado: new Date().toISOString(), guardados: n + 1 }, { onConflict: 'usuario' });
+      .upsert({ usuario, ultimo_guardado: new Date().toISOString(), guardados: n + 1, detalle: detalle || null }, { onConflict: 'usuario' });
   } catch (e) { console.error('actividad guardado:', e); }
 }
 async function sbActividad() {
@@ -144,6 +144,26 @@ async function sbGetLock() {
 async function sbSetLock(val) {
   const { error } = await sb().from('config').upsert({ id: 1, bloqueado: val }, { onConflict: 'id' });
   if (error) throw new Error(error.message);
+}
+
+// ---------- Credenciales (cambio de contraseña + vencimiento a 6 meses) ----------
+const PASS_MAX_AGE = 182 * 86400000;   // ~6 meses en ms
+async function sbGetCred(usuario) {
+  try {
+    const { data } = await sb().from('credenciales').select('hash,cambiada_en').eq('usuario', usuario).maybeSingle();
+    return data || null;
+  } catch (e) { console.error('cred get:', e); return null; }
+}
+async function sbSetCred(usuario, hash) {
+  const { error } = await sb().from('credenciales').upsert(
+    { usuario, hash, cambiada_en: new Date().toISOString() }, { onConflict: 'usuario' });
+  if (error) throw new Error(error.message);
+}
+// Devuelve la credencial vigente; si no existe, la crea con el hash actual (línea base).
+async function ensureCred(usuario, hashBase) {
+  let cred = await sbGetCred(usuario);
+  if (!cred) { try { await sbSetCred(usuario, hashBase); } catch {} cred = { hash: hashBase, cambiada_en: new Date().toISOString() }; }
+  return cred;
 }
 
 // ---------- Hash de contraseña ----------
@@ -560,7 +580,7 @@ async function renderActividad() {
   const body = $('#actividad-body');
   const empty = $('#actividad-empty');
   empty.hidden = true;
-  body.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center">Cargando…</td></tr>';
+  body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center">Cargando…</td></tr>';
   let act = [];
   try { act = await sbActividad(); }
   catch (ex) {
@@ -587,6 +607,7 @@ async function renderActividad() {
       <td>${(u.familias || []).join(', ')}</td>
       <td${rojo}>${fmtDT(a.ultima_conexion)}</td>
       <td>${fmtDT(a.ultimo_guardado)}</td>
+      <td>${a.detalle || '—'}</td>
       <td>${a.guardados || 0}</td>
     </tr>`;
   }).join('');
@@ -692,8 +713,9 @@ function bindEvents() {
     try {
       const user = state.users.find(x => x.user.toLowerCase() === u.toLowerCase());
       if (!user || !user.active) throw new Error('Usuario no válido o inactivo.');
-      if ((await hashPassword(p)) !== user.hash) throw new Error('Contraseña incorrecta.');
       if (user.role !== 'master' && await sbGetLock()) throw new Error('Acceso bloqueado por mantenimiento. Intenta más tarde.');
+      const cred = await ensureCred(user.user, user.hash);   // hash vigente (cambiado por el usuario o el master)
+      if ((await hashPassword(p)) !== cred.hash) throw new Error('Contraseña incorrecta.');
       state.session = { user: user.user, name: user.name, role: user.role, familias: user.familias || [] };
       sessionStorage.setItem('ncpend_session', JSON.stringify(state.session));
       enterApp();
@@ -763,6 +785,21 @@ function bindEvents() {
   $('#user-form').addEventListener('submit', saveUserForm);
   $('#uf-role').addEventListener('change', e => toggleFamiliasField(e.target.value));
   $$('[data-close]').forEach(b => b.addEventListener('click', () => { $('#user-modal').hidden = true; }));
+
+  // Cambio de contraseña
+  $('#change-pass-btn').addEventListener('click', () => openPassModal(false));
+  $$('[data-close-pass]').forEach(b => b.addEventListener('click', () => { $('#pass-modal').hidden = true; }));
+  $('#pass-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const n = $('#pf-new').value, c = $('#pf-confirm').value;
+    if (n.length < 4) { toast('La contraseña debe tener al menos 4 caracteres', 'err'); return; }
+    if (n !== c) { toast('Las contraseñas no coinciden', 'err'); return; }
+    try {
+      await sbSetCred(state.session.user, await hashPassword(n));
+      $('#pass-modal').hidden = true;
+      toast('Contraseña actualizada ✓', 'ok');
+    } catch (ex) { toast('Error: ' + ex.message, 'err'); }
+  });
 
   // Config
   $('#config-form').addEventListener('submit', (e) => {
@@ -855,7 +892,8 @@ async function confirmUpload() {
       if (touched) changed.push(merged);
     }
     await sbUpsert(changed, false);
-    await sbLogGuardado(state.session.user);
+    const fams = [...new Set(changed.map(r => r['FAMILIA']).filter(Boolean))].join(', ');
+    await sbLogGuardado(state.session.user, `Actualizó ${changed.length} fila(s)${fams ? ' · ' + fams : ''}`);
     await loadConsolidado();
     await loadHistorico();
     state.pending = null;
@@ -901,7 +939,7 @@ async function confirmBase() {
     const { result, removed } = reconcileWeekly(state.data, state.pendingBase);
     await sbUpsert(result, false);
     await sbUpsert(removed, true);
-    await sbLogGuardado(state.session.user);
+    await sbLogGuardado(state.session.user, `Cargó base (${result.length} vigentes, ${removed.length} archivados)`);
     await loadConsolidado();
     await loadHistorico();
     state.pendingBase = null;
@@ -956,22 +994,35 @@ async function saveUserForm(e) {
   const active = $('#uf-active').checked;
   // master ve todo; para usuarios, las familias seleccionadas (vacío = todas)
   const familias = role === 'master' ? [] : [...$('#uf-familias').selectedOptions].map(o => o.value);
+  const targetUser = orig || userName;
+  const newHash = pass ? await hashPassword(pass) : null;
 
   if (orig) {
     const u = state.users.find(x => x.user === orig);
     u.name = name; u.role = role; u.active = active; u.familias = familias;
-    if (pass) u.hash = await hashPassword(pass);
+    if (newHash) u.hash = newHash;
   } else {
     if (state.users.some(x => x.user.toLowerCase() === userName.toLowerCase())) { toast('Ese usuario ya existe', 'err'); return; }
     if (!pass) { toast('La contraseña es obligatoria', 'err'); return; }
-    state.users.push({ user: userName, name, role, active, familias, hash: await hashPassword(pass) });
+    state.users.push({ user: userName, name, role, active, familias, hash: newHash });
   }
   try {
-    const where = await saveUsers();
+    await saveUsers();
+    // El master fija/reinicia la contraseña en la nube (login la usa; reinicia los 6 meses)
+    if (newHash) { try { await sbSetCred(targetUser, newHash); } catch (e) { console.error(e); } }
     $('#user-modal').hidden = true;
     renderUsuarios();
-    toast(where === 'github' ? 'Usuario guardado en GitHub ✓' : 'Usuario guardado localmente', where === 'github' ? 'ok' : '');
+    toast('Usuario guardado ✓', 'ok');
   } catch (ex) { toast('Error al guardar usuario: ' + ex.message, 'err'); }
+}
+
+// ---------- Modal de cambio de contraseña ----------
+function openPassModal(forced) {
+  $('#pf-new').value = ''; $('#pf-confirm').value = '';
+  $('#pass-modal-title').textContent = forced ? 'Cambia tu contraseña' : 'Cambiar contraseña';
+  $('#pass-msg').textContent = forced ? 'Tu contraseña venció (se cambia cada 6 meses). Debes cambiarla para continuar.' : '';
+  $$('[data-close-pass]').forEach(b => b.style.display = forced ? 'none' : '');
+  $('#pass-modal').hidden = false;
 }
 
 async function deleteUser(index) {
@@ -996,6 +1047,15 @@ async function enterApp() {
   await loadConsolidado();
   await loadHistorico();
   showView('dashboard');
+  checkPasswordExpiry();               // obliga a cambiar la clave si venció (6 meses)
+}
+
+// Si la contraseña tiene más de 6 meses, obliga a cambiarla.
+async function checkPasswordExpiry() {
+  try {
+    const cred = await sbGetCred(state.session.user);
+    if (cred && (Date.now() - new Date(cred.cambiada_en).getTime()) > PASS_MAX_AGE) openPassModal(true);
+  } catch { /* ignora */ }
 }
 
 async function init() {
