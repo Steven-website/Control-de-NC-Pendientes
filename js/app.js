@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=9';
-import * as gh from './github.js?v=9';
+} from './schema.js?v=10';
+import * as gh from './github.js?v=10';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -463,11 +463,47 @@ function renderBars(el, entries, max) {
     </div>`).join('') || '<p class="muted">Sin datos</p>';
 }
 
+// Agrupa por columna sumando COST_TOTAL, separado en Pendiente / Enviado.
+function groupCost(rows, key) {
+  const m = new Map();
+  for (const r of rows) {
+    const k = r[key] || '(sin dato)';
+    const cost = Number(r['COST_TOTAL']) || 0;
+    const o = m.get(k) || { pend: 0, env: 0 };
+    if (r['ENVIADO_CXP'] === 'Enviado') o.env += cost; else o.pend += cost;
+    m.set(k, o);
+  }
+  return [...m.entries()].map(([k, o]) => [k, o, o.pend + o.env]).sort((a, b) => b[2] - a[2]);
+}
+
+const fmtCol = (n) => '₡' + Math.round(n).toLocaleString('es-CR');
+
+// Barras de costo segmentadas: ámbar = Pendiente, verde = Enviado.
+function renderCostBars(el, entries) {
+  const top = entries.slice(0, 6);
+  const maxTotal = Math.max(1, ...top.map(e => e[2]));
+  el.innerHTML = '<div class="muted" style="font-size:11px;margin-bottom:8px">🟧 Pendiente · 🟩 Enviado (costo)</div>' +
+    (top.map(([label, o, total]) => {
+      const lbl = String(label).length > 16 ? String(label).slice(0, 16) + '…' : label;
+      const pw = (o.pend / maxTotal) * 100, ew = (o.env / maxTotal) * 100;
+      return `<div class="bar-row" style="grid-template-columns:120px 1fr 110px">
+        <span title="${label}">${lbl}</span>
+        <div class="bar-track" style="display:flex">
+          <div style="width:${pw}%;height:100%;background:#F59E0B" title="Pendiente ${fmtCol(o.pend)}"></div>
+          <div style="width:${ew}%;height:100%;background:#22C55E" title="Enviado ${fmtCol(o.env)}"></div>
+        </div>
+        <span class="bar-val">${fmtCol(total)}</span>
+      </div>`;
+    }).join('') || '<p class="muted">Sin datos</p>');
+}
+
 function renderDashboard() {
   const d = visibleData();
   const pend = d.filter(r => (r['ENVIADO_CXP'] || 'Pendiente') === 'Pendiente').length;
   const env  = d.filter(r => r['ENVIADO_CXP'] === 'Enviado').length;
   const costo = d.reduce((s, r) => s + (Number(r['COST_TOTAL']) || 0), 0);
+  const costoPend = d.filter(r => (r['ENVIADO_CXP'] || 'Pendiente') === 'Pendiente').reduce((s, r) => s + (Number(r['COST_TOTAL']) || 0), 0);
+  const costoEnv = d.filter(r => r['ENVIADO_CXP'] === 'Enviado').reduce((s, r) => s + (Number(r['COST_TOTAL']) || 0), 0);
   const docs = new Set(d.map(r => r['NO_DOCU'])).size;
 
   $('#kpi-total').textContent = d.length.toLocaleString('es-CR');
@@ -475,10 +511,12 @@ function renderDashboard() {
   $('#kpi-env').textContent   = env.toLocaleString('es-CR');
   $('#kpi-costo').textContent = '₡' + costo.toLocaleString('es-CR', { maximumFractionDigits: 0 });
   $('#kpi-docs').textContent  = docs.toLocaleString('es-CR');
+  $('#kpi-pend-costo').textContent = fmtCol(costoPend);
+  $('#kpi-env-costo').textContent  = fmtCol(costoEnv);
 
-  renderBars($('#chart-almacen'), groupCount(d, 'ALMACEN'));
-  renderBars($('#chart-tipo'), groupCount(d, 'PROVEEDOR'));
-  renderBars($('#chart-familia'), groupCount(d, 'FAMILIA'));
+  renderCostBars($('#chart-almacen'), groupCost(d, 'ALMACEN'));
+  renderCostBars($('#chart-tipo'), groupCost(d, 'PROVEEDOR'));
+  renderCostBars($('#chart-familia'), groupCost(d, 'FAMILIA'));
 
   // Movimientos recientes (por fecha desc)
   const recientes = [...d].sort((a, b) => {
