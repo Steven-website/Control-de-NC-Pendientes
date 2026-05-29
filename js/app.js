@@ -564,17 +564,28 @@ function applyRole() {
   $('#user-role').textContent = state.session.role;
   $('#user-avatar').textContent = (state.session.name || '?').charAt(0).toUpperCase();
 
-  // Texto y botones de la sección Cargar según el rol
-  $('#download-mydata').hidden = isMaster;     // descargar para editar: solo usuarios
+  // Sección Cargar según el rol
+  $('#download-mydata').hidden = false;   // todos pueden descargar su data
   if (isMaster) {
-    $('#cargar-intro').textContent = 'Sube la base de la semana (el Excel del SQL).';
-    $('#upload-help').innerHTML = 'Sube la base de la semana. Reemplaza a la anterior: los que continúan <b>conservan sus estados</b>, los nuevos quedan <b>Pendiente</b> y los que ya no aparecen pasan al <b>Histórico</b>.';
-    $('#confirm-upload').textContent = 'Cargar base';
+    $('#cargar-intro').innerHTML = 'Como master puedes <b>Cargar base nueva</b> (semanal) o <b>Guardar cambios</b> (editar estados sin reemplazar).';
+    $('#upload-help').innerHTML = '<b>Cargar base nueva</b>: reemplaza la base y archiva lo que ya no viene. · <b>Guardar cambios</b>: solo actualiza estados, sin borrar ni reemplazar.';
   } else {
     $('#cargar-intro').innerHTML = '1) Descarga tu data · 2) edítala en Excel (Enviado/Aplicado) · 3) súbela.';
-    $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios (Enviado/Aplicado). Se actualizan <b>solo las filas de tus familias</b>; no afecta al resto de la base.';
-    $('#confirm-upload').textContent = 'Guardar mis cambios';
+    $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios. Se actualizan <b>solo las filas de tus familias</b>; no borra ni afecta al resto.';
   }
+  resetUploadButtons();
+}
+
+// Ajusta los botones de carga según el rol y si hay archivo cargado.
+function resetUploadButtons() {
+  const isMaster = state.session && state.session.role === 'master';
+  const has = !!(state.pending && state.pending.length);
+  const b1 = $('#confirm-upload'), b2 = $('#confirm-upload-patch');
+  b1.textContent = isMaster ? 'Cargar base nueva' : 'Guardar mis cambios';
+  b1.disabled = !has;
+  b2.hidden = !isMaster;          // segundo botón (patch) solo para master
+  b2.textContent = 'Guardar cambios';
+  b2.disabled = !has;
 }
 
 // ============================================================
@@ -648,7 +659,8 @@ function bindEvents() {
   dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
   dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
   fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-  $('#confirm-upload').addEventListener('click', confirmUpload);
+  $('#confirm-upload').addEventListener('click', () => confirmUpload());
+  $('#confirm-upload-patch').addEventListener('click', () => confirmUpload('patch'));
 
   // Usuarios
   $('#add-user-btn').addEventListener('click', () => openUserModal());
@@ -705,30 +717,35 @@ function handleFile(file) {
   reader.onload = (e) => {
     try {
       const rows = parseExcel(e.target.result);
-      state.pending = rows;
+      state.pending = rows.length ? rows : null;
       const sum = $('#upload-summary');
       sum.className = 'upload-summary';
       sum.hidden = false;
       sum.innerHTML = `<b>${file.name}</b><br>${rows.length} filas detectadas y validadas.`;
-      $('#confirm-upload').disabled = rows.length === 0;
+      resetUploadButtons();
     } catch (ex) {
+      state.pending = null;
       const sum = $('#upload-summary');
       sum.className = 'upload-summary err'; sum.hidden = false;
       sum.textContent = 'Error al leer el archivo: ' + ex.message;
-      $('#confirm-upload').disabled = true;
+      resetUploadButtons();
     }
   };
   reader.readAsArrayBuffer(file);
 }
 
-async function confirmUpload() {
+// mode: 'base' = reconciliar (reemplaza + archiva, solo master)
+//       'patch' = solo actualizar estados (no borra, no reemplaza)
+async function confirmUpload(mode) {
   if (!state.pending) return;
   const isMaster = state.session && state.session.role === 'master';
-  const btn = $('#confirm-upload');
-  btn.disabled = true; btn.textContent = 'Procesando...';
+  if (!mode) mode = isMaster ? 'base' : 'patch';
+  const clicked = (mode === 'patch' && isMaster) ? $('#confirm-upload-patch') : $('#confirm-upload');
+  $('#confirm-upload').disabled = true; $('#confirm-upload-patch').disabled = true;
+  clicked.textContent = 'Procesando...';
   try {
     let detalle;
-    if (isMaster) {
+    if (mode === 'base' && isMaster) {
       // MASTER: la base nueva es la verdad vigente. Las que continúan conservan
       // sus estados; las que ya no aparecen pasan al histórico (archivado=true).
       const { result, removed } = reconcileWeekly(state.data, state.pending);
@@ -736,17 +753,24 @@ async function confirmUpload() {
       await sbUpsert(removed, true);
       detalle = `${result.length} vigentes · ${removed.length} archivados`;
     } else {
-      // USUARIO: actualiza solo los campos creados de las filas de SUS familias.
-      const allowed = new Set(state.session.familias || []);
+      // PATCH: solo COMPLETA/actualiza los campos creados. Nunca borra: si la
+      // celda viene vacía o "Pendiente", se conserva lo anterior.
+      // Usuario → solo sus familias. Master → cualquier familia.
+      const allowed = isMaster ? null : new Set(state.session.familias || []);
       const existing = new Map(state.data.map(r => [rowKey(r), r]));
       const changed = [];
       for (const inc of state.pending) {
         const prev = existing.get(rowKey(inc));
         if (!prev) continue;
-        if (allowed.size && !allowed.has(prev['FAMILIA'])) continue;
+        if (allowed && allowed.size && !allowed.has(prev['FAMILIA'])) continue;
         const merged = { ...prev };
-        for (const k of CREATED_KEYS) if (inc[k] !== undefined) merged[k] = inc[k];
-        changed.push(merged);
+        let touched = false;
+        for (const k of CREATED_KEYS) {
+          const v = inc[k];
+          const meaningful = v != null && v !== '' && v !== 'Pendiente';
+          if (meaningful) { merged[k] = v; touched = true; }
+        }
+        if (touched) changed.push(merged);
       }
       await sbUpsert(changed, false);
       detalle = `${changed.length} filas actualizadas`;
@@ -762,7 +786,7 @@ async function confirmUpload() {
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
   } finally {
-    btn.disabled = false; btn.textContent = isMaster ? 'Cargar base' : 'Guardar mis cambios';
+    resetUploadButtons();
   }
 }
 
