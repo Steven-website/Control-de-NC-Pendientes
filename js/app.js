@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=5';
-import * as gh from './github.js?v=5';
+} from './schema.js?v=6';
+import * as gh from './github.js?v=6';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -132,6 +132,18 @@ async function sbActividad() {
   const { data, error } = await sb().from('actividad_usuarios').select('*');
   if (error) throw new Error(error.message);
   return data || [];
+}
+
+// ---------- Bloqueo global (modo mantenimiento: desactivar/activar usuarios) ----------
+async function sbGetLock() {
+  try {
+    const { data } = await sb().from('config').select('bloqueado').eq('id', 1).maybeSingle();
+    return !!(data && data.bloqueado);
+  } catch (e) { console.error('lock get:', e); return false; }
+}
+async function sbSetLock(val) {
+  const { error } = await sb().from('config').upsert({ id: 1, bloqueado: val }, { onConflict: 'id' });
+  if (error) throw new Error(error.message);
 }
 
 // ---------- Hash de contraseña ----------
@@ -596,6 +608,14 @@ function renderUsuarios() {
         ${u.user.toLowerCase() === 'master' ? '' : `<button class="icon-btn" data-del="${i}" title="Eliminar">🗑️</button>`}
       </td>
     </tr>`).join('');
+  sbGetLock().then(updateLockUI);
+}
+
+// Refleja el estado del bloqueo en los botones.
+function updateLockUI(locked) {
+  const l = $('#lock-users'), u = $('#unlock-users');
+  if (l) l.disabled = locked;
+  if (u) u.disabled = !locked;
 }
 
 // ============================================================
@@ -673,6 +693,7 @@ function bindEvents() {
       const user = state.users.find(x => x.user.toLowerCase() === u.toLowerCase());
       if (!user || !user.active) throw new Error('Usuario no válido o inactivo.');
       if ((await hashPassword(p)) !== user.hash) throw new Error('Contraseña incorrecta.');
+      if (user.role !== 'master' && await sbGetLock()) throw new Error('Acceso bloqueado por mantenimiento. Intenta más tarde.');
       state.session = { user: user.user, name: user.name, role: user.role, familias: user.familias || [] };
       sessionStorage.setItem('ncpend_session', JSON.stringify(state.session));
       enterApp();
@@ -725,6 +746,15 @@ function bindEvents() {
 
   // Usuarios
   $('#add-user-btn').addEventListener('click', () => openUserModal());
+  $('#lock-users').addEventListener('click', async () => {
+    if (!confirm('¿Desactivar a TODOS los usuarios? No podrán entrar ni guardar hasta reactivarlos.')) return;
+    try { await sbSetLock(true); updateLockUI(true); toast('Usuarios desactivados (mantenimiento) 🔒', 'ok'); }
+    catch (e) { toast('Error: ' + e.message, 'err'); }
+  });
+  $('#unlock-users').addEventListener('click', async () => {
+    try { await sbSetLock(false); updateLockUI(false); toast('Usuarios activados 🔓', 'ok'); }
+    catch (e) { toast('Error: ' + e.message, 'err'); }
+  });
   $('#usuarios-body').addEventListener('click', (e) => {
     const ed = e.target.closest('[data-edit]'); const dl = e.target.closest('[data-del]');
     if (ed) openUserModal(Number(ed.dataset.edit));
@@ -801,6 +831,10 @@ function handleFile(file) {
 async function confirmUpload() {
   if (!state.pending || !state.pending.length) return;
   const isMaster = state.session && state.session.role === 'master';
+  if (!isMaster && await sbGetLock()) {
+    toast('El sistema está en mantenimiento. Intenta guardar más tarde.', 'err');
+    return;
+  }
   const btn = $('#confirm-upload');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {

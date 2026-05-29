@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=5" />
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body>
   <!-- ===================== LOGIN ===================== -->
@@ -228,7 +228,11 @@
           <div class="panel">
             <div class="panel-head">
               <h3>Control de Usuarios</h3>
-              <button id="add-user-btn" class="btn btn-primary">+ Nuevo usuario</button>
+              <div class="panel-head-actions">
+                <button id="lock-users" class="btn btn-light" title="Bloquea el ingreso/guardado de los usuarios">🔒 Desactivar usuarios</button>
+                <button id="unlock-users" class="btn btn-light" title="Reactiva a los usuarios">🔓 Activar usuarios</button>
+                <button id="add-user-btn" class="btn btn-primary">+ Nuevo usuario</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table class="data-table">
@@ -301,6 +305,6 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="js/app.js?v=5"></script>
+  <script type="module" src="js/app.js?v=6"></script>
 </body>
 </html>
