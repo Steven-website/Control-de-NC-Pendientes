@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=2';
-import * as gh from './github.js?v=2';
+} from './schema.js?v=3';
+import * as gh from './github.js?v=3';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -58,7 +58,8 @@ const state = {
   data: [],         // filas consolidadas (columnas base)
   historico: [],    // filas que salieron de la base (respaldo)
   users: [],        // usuarios
-  pending: null,    // filas pendientes de confirmar carga
+  pending: null,    // filas pendientes (Cargar/Plantilla → Guardar cambios)
+  pendingBase: null, // filas pendientes (Base original → Cargar base)
 };
 
 // ---------- Persistencia local (respaldo / caché) ----------
@@ -599,7 +600,7 @@ function renderUsuarios() {
 // ============================================================
 //  NAVEGACIÓN / VISTAS
 // ============================================================
-const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', historico: 'Histórico', actividad: 'Actividad', usuarios: 'Control de Usuarios', config: 'Configuración' };
+const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', base: 'Base original', historico: 'Histórico', actividad: 'Actividad', usuarios: 'Control de Usuarios', config: 'Configuración' };
 
 function showView(name) {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
@@ -620,28 +621,21 @@ function applyRole() {
   $('#user-role').textContent = state.session.role;
   $('#user-avatar').textContent = (state.session.name || '?').charAt(0).toUpperCase();
 
-  // Sección Cargar según el rol
-  $('#download-mydata').hidden = false;   // todos pueden descargar su data
-  if (isMaster) {
-    $('#cargar-intro').innerHTML = 'Sube aquí la <b>base original</b> que actualizas <b>cada semana</b> → botón verde <b>«Cargar base original (semanal)»</b>. El botón azul <b>«Guardar cambios»</b> solo edita estados, sin reemplazar la base.';
-    $('#upload-help').innerHTML = '<b>Cargar base original (semanal)</b>: reemplaza la base con la del SQL y archiva lo que ya no viene (Histórico). · <b>Guardar cambios</b>: solo actualiza estados (Enviado/Aplicado/Nota), sin borrar ni reemplazar.';
-  } else {
-    $('#cargar-intro').innerHTML = '1) Descarga tu data · 2) edítala en Excel (Enviado/Aplicado) · 3) súbela.';
-    $('#upload-help').innerHTML = 'Sube tu archivo con tus cambios. Se actualizan <b>solo las filas de tus familias</b>; no borra ni afecta al resto.';
-  }
+  // "Cargar / Plantilla" es igual para todos: descargar + guardar cambios (editar estados).
+  $('#download-mydata').hidden = false;
+  $('#cargar-intro').innerHTML = '1) Descarga tu data · 2) edítala en Excel (Enviado/Aplicado/Nota) · 3) súbela con «Guardar cambios».';
+  $('#upload-help').innerHTML = 'Solo actualiza estados; <b>no borra</b> ni reemplaza la base.' +
+    (isMaster ? ' Para subir la base completa del SQL, usa la pestaña <b>«Base original»</b>.' : ' Se actualizan <b>solo tus familias</b>.');
   resetUploadButtons();
 }
 
-// Ajusta los botones de carga según el rol y si hay archivo cargado.
+// Botón de "Guardar cambios" (Cargar/Plantilla) según haya archivo cargado.
 function resetUploadButtons() {
   const isMaster = state.session && state.session.role === 'master';
   const has = !!(state.pending && state.pending.length);
-  const b1 = $('#confirm-upload'), b2 = $('#confirm-upload-patch');
-  b1.textContent = isMaster ? 'Cargar base original (semanal)' : 'Guardar mis cambios';
-  b1.disabled = !has;
-  b2.hidden = !isMaster;          // segundo botón (patch) solo para master
-  b2.textContent = 'Guardar cambios';
-  b2.disabled = !has;
+  const b = $('#confirm-upload');
+  b.textContent = isMaster ? 'Guardar cambios' : 'Guardar mis cambios';
+  b.disabled = !has;
 }
 
 // ============================================================
@@ -729,8 +723,15 @@ function bindEvents() {
   dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
   dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
   fi.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
-  $('#confirm-upload').addEventListener('click', () => confirmUpload());
-  $('#confirm-upload-patch').addEventListener('click', () => confirmUpload('patch'));
+  $('#confirm-upload').addEventListener('click', confirmUpload);
+
+  // Base original (solo master)
+  const dzb = $('#dropzone-base'), fib = $('#file-base');
+  dzb.addEventListener('dragover', e => { e.preventDefault(); dzb.classList.add('drag'); });
+  dzb.addEventListener('dragleave', () => dzb.classList.remove('drag'));
+  dzb.addEventListener('drop', e => { e.preventDefault(); dzb.classList.remove('drag'); if (e.dataTransfer.files[0]) handleFileBase(e.dataTransfer.files[0]); });
+  fib.addEventListener('change', e => { if (e.target.files[0]) handleFileBase(e.target.files[0]); });
+  $('#confirm-base').addEventListener('click', confirmBase);
 
   // Usuarios
   $('#add-user-btn').addEventListener('click', () => openUserModal());
@@ -804,60 +805,89 @@ function handleFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-// mode: 'base' = reconciliar (reemplaza + archiva, solo master)
-//       'patch' = solo actualizar estados (no borra, no reemplaza)
-async function confirmUpload(mode) {
-  if (!state.pending) return;
+// "Guardar cambios" (Cargar/Plantilla): solo actualiza estados. Nunca borra:
+// si la celda viene vacía o "Pendiente", se conserva lo anterior.
+// Usuario → solo sus familias. Master → cualquier familia.
+async function confirmUpload() {
+  if (!state.pending || !state.pending.length) return;
   const isMaster = state.session && state.session.role === 'master';
-  if (!mode) mode = isMaster ? 'base' : 'patch';
-  const clicked = (mode === 'patch' && isMaster) ? $('#confirm-upload-patch') : $('#confirm-upload');
-  $('#confirm-upload').disabled = true; $('#confirm-upload-patch').disabled = true;
-  clicked.textContent = 'Procesando...';
+  const btn = $('#confirm-upload');
+  btn.disabled = true; btn.textContent = 'Procesando...';
   try {
-    let detalle;
-    if (mode === 'base' && isMaster) {
-      // MASTER: la base nueva es la verdad vigente. Las que continúan conservan
-      // sus estados; las que ya no aparecen pasan al histórico (archivado=true).
-      const { result, removed } = reconcileWeekly(state.data, state.pending);
-      await sbUpsert(result, false);
-      await sbUpsert(removed, true);
-      detalle = `${result.length} vigentes · ${removed.length} archivados`;
-    } else {
-      // PATCH: solo COMPLETA/actualiza los campos creados. Nunca borra: si la
-      // celda viene vacía o "Pendiente", se conserva lo anterior.
-      // Usuario → solo sus familias. Master → cualquier familia.
-      const allowed = isMaster ? null : new Set(state.session.familias || []);
-      const existing = new Map(state.data.map(r => [rowKey(r), r]));
-      const changed = [];
-      for (const inc of state.pending) {
-        const prev = existing.get(rowKey(inc));
-        if (!prev) continue;
-        if (allowed && allowed.size && !allowed.has(prev['FAMILIA'])) continue;
-        const merged = { ...prev };
-        let touched = false;
-        for (const k of CREATED_KEYS) {
-          const v = inc[k];
-          const meaningful = v != null && v !== '' && v !== 'Pendiente';
-          if (meaningful) { merged[k] = v; touched = true; }
-        }
-        if (touched) changed.push(merged);
+    const allowed = isMaster ? null : new Set(state.session.familias || []);
+    const existing = new Map(state.data.map(r => [rowKey(r), r]));
+    const changed = [];
+    for (const inc of state.pending) {
+      const prev = existing.get(rowKey(inc));
+      if (!prev) continue;
+      if (allowed && allowed.size && !allowed.has(prev['FAMILIA'])) continue;
+      const merged = { ...prev };
+      let touched = false;
+      for (const k of CREATED_KEYS) {
+        const v = inc[k];
+        const meaningful = v != null && v !== '' && v !== 'Pendiente';
+        if (meaningful) { merged[k] = v; touched = true; }
       }
-      await sbUpsert(changed, false);
-      detalle = `${changed.length} filas actualizadas`;
+      if (touched) changed.push(merged);
     }
-
-    await sbLogGuardado(state.session.user);   // registra el guardado
+    await sbUpsert(changed, false);
+    await sbLogGuardado(state.session.user);
     await loadConsolidado();
     await loadHistorico();
     state.pending = null;
     $('#upload-summary').hidden = true;
     $('#file-input').value = '';
-    toast(`Guardado en la nube ✓ (${detalle})`, 'ok');
+    toast(`Guardado en la nube ✓ (${changed.length} filas actualizadas)`, 'ok');
     showView('dashboard');
   } catch (ex) {
     toast('Error al guardar: ' + ex.message, 'err');
   } finally {
     resetUploadButtons();
+  }
+}
+
+// ---------- Base original (solo master): reconcilia y archiva ----------
+function handleFileBase(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = parseExcel(e.target.result);
+      state.pendingBase = rows.length ? rows : null;
+      const sum = $('#summary-base');
+      sum.className = 'upload-summary'; sum.hidden = false;
+      sum.innerHTML = `<b>${file.name}</b><br>${rows.length} filas detectadas y validadas.`;
+      $('#confirm-base').disabled = !state.pendingBase;
+    } catch (ex) {
+      state.pendingBase = null;
+      const sum = $('#summary-base');
+      sum.className = 'upload-summary err'; sum.hidden = false;
+      sum.textContent = 'Error al leer el archivo: ' + ex.message;
+      $('#confirm-base').disabled = true;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function confirmBase() {
+  if (!state.pendingBase || !state.pendingBase.length) return;
+  const btn = $('#confirm-base');
+  btn.disabled = true; btn.textContent = 'Procesando...';
+  try {
+    const { result, removed } = reconcileWeekly(state.data, state.pendingBase);
+    await sbUpsert(result, false);
+    await sbUpsert(removed, true);
+    await sbLogGuardado(state.session.user);
+    await loadConsolidado();
+    await loadHistorico();
+    state.pendingBase = null;
+    $('#summary-base').hidden = true;
+    $('#file-base').value = '';
+    toast(`Base cargada en la nube ✓ (${result.length} vigentes · ${removed.length} archivados)`, 'ok');
+    showView('dashboard');
+  } catch (ex) {
+    toast('Error al guardar: ' + ex.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Cargar base original (semanal)';
   }
 }
 
