@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=7';
-import * as gh from './github.js?v=7';
+} from './schema.js?v=8';
+import * as gh from './github.js?v=8';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -580,7 +580,7 @@ async function renderActividad() {
   const body = $('#actividad-body');
   const empty = $('#actividad-empty');
   empty.hidden = true;
-  body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center">Cargando…</td></tr>';
+  body.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center">Cargando…</td></tr>';
   let act = [];
   try { act = await sbActividad(); }
   catch (ex) {
@@ -599,13 +599,16 @@ async function renderActividad() {
   body.innerHTML = state.users.map(u => {
     const a = map.get(u.user) || {};
     const conx = a.ultima_conexion ? new Date(a.ultima_conexion).getTime() : 0;
-    const stale = !conx || (now - conx) > 7 * 86400000;   // 7 días o nunca
+    const dias = conx ? Math.floor((now - conx) / 86400000) : null;
+    const stale = !conx || dias >= 7;   // 7 días o nunca
     const rojo = stale ? ' style="color:#b91c1c;font-weight:600"' : '';
+    const diasTxt = dias == null ? '— (nunca)' : (dias === 0 ? 'Hoy' : `${dias} día${dias === 1 ? '' : 's'}`);
     return `<tr>
       <td${rojo}>${u.user}</td>
       <td>${u.role}</td>
       <td>${(u.familias || []).join(', ')}</td>
       <td${rojo}>${fmtDT(a.ultima_conexion)}</td>
+      <td${rojo}>${diasTxt}</td>
       <td>${fmtDT(a.ultimo_guardado)}</td>
       <td>${a.detalle || '—'}</td>
       <td>${a.guardados || 0}</td>
