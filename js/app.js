@@ -38,6 +38,20 @@ function fmtCell(value, col) {
   return String(value);
 }
 
+// Comparador para ordenar columnas: texto A→Z (con acentos), números y fechas.
+function cmpVals(a, b, col) {
+  const ea = (a == null || a === ''), eb = (b == null || b === '');
+  if (ea && eb) return 0;
+  if (ea) return 1;          // vacíos al final
+  if (eb) return -1;
+  if (col && col.type === 'number') return (Number(a) || 0) - (Number(b) || 0);
+  if (col && col.type === 'date') {
+    const da = parseDate(a), db = parseDate(b);
+    return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+  }
+  return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
+}
+
 // ---------- Estado global ----------
 const state = {
   session: null,    // { user, name, role }
@@ -417,12 +431,16 @@ function renderDashboard() {
 //  RENDER — Consolidado
 // ============================================================
 let consFilter = { q: '', tipo: '' };
+let consSort = { key: '', dir: 1 };
 
 function renderConsolidado() {
   const head = $('#consolidado-head');
   const body = $('#consolidado-body');
   const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // mismo orden que el Excel
-  head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  head.innerHTML = '<tr>' + cols.map(c => {
+    const arrow = consSort.key === c.key ? (consSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable" data-key="${c.key}">${c.label}${arrow}</th>`;
+  }).join('') + '</tr>';
 
   // poblar filtro de tipo doc
   const base = visibleData();
@@ -437,6 +455,10 @@ function renderConsolidado() {
   let rows = base.map(withDerived).map(r => ({ ...r, COMPRADOR: famMap.get(r['FAMILIA']) || '' }));
   if (consFilter.tipo) rows = rows.filter(r => r['TIPO DOC'] === consFilter.tipo);
   if (q) rows = rows.filter(r => cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
+  if (consSort.key) {
+    const col = cols.find(c => c.key === consSort.key);
+    rows.sort((a, b) => cmpVals(a[consSort.key], b[consSort.key], col) * consSort.dir);
+  }
 
   $('#consolidado-empty').hidden = base.length > 0;
   body.innerHTML = rows.slice(0, 500).map(r => '<tr>' +
@@ -450,17 +472,25 @@ function renderConsolidado() {
 //  RENDER — Histórico
 // ============================================================
 let histFilter = { q: '' };
+let histSort = { key: '', dir: 1 };
 
 function renderHistorico() {
   const head = $('#historico-head');
   const body = $('#historico-body');
   const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // mismo orden que el Excel
-  head.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+  head.innerHTML = '<tr>' + cols.map(c => {
+    const arrow = histSort.key === c.key ? (histSort.dir === 1 ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable" data-key="${c.key}">${c.label}${arrow}</th>`;
+  }).join('') + '</tr>';
 
   const famMap = buildFamiliaMap();
   const q = histFilter.q.toLowerCase();
   let rows = state.historico.map(withDerived).map(r => ({ ...r, COMPRADOR: famMap.get(r['FAMILIA']) || '' }));
   if (q) rows = rows.filter(r => cols.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)));
+  if (histSort.key) {
+    const col = cols.find(c => c.key === histSort.key);
+    rows.sort((a, b) => cmpVals(a[histSort.key], b[histSort.key], col) * histSort.dir);
+  }
 
   $('#historico-count').textContent = state.historico.length.toLocaleString('es-CR');
   $('#historico-empty').hidden = state.historico.length > 0;
@@ -646,9 +676,23 @@ function bindEvents() {
   $('#search-input').addEventListener('input', e => { consFilter.q = e.target.value; renderConsolidado(); });
   $('#filter-tipo').addEventListener('change', e => { consFilter.tipo = e.target.value; renderConsolidado(); });
 
+  // Ordenar al hacer clic en los encabezados
+  $('#consolidado-head').addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-key]'); if (!th) return;
+    const k = th.dataset.key;
+    if (consSort.key === k) consSort.dir *= -1; else { consSort.key = k; consSort.dir = 1; }
+    renderConsolidado();
+  });
+
   // Histórico
   $('#hist-search').addEventListener('input', e => { histFilter.q = e.target.value; renderHistorico(); });
   $('#export-hist-excel').addEventListener('click', exportHistoricoExcel);
+  $('#historico-head').addEventListener('click', (e) => {
+    const th = e.target.closest('th[data-key]'); if (!th) return;
+    const k = th.dataset.key;
+    if (histSort.key === k) histSort.dir *= -1; else { histSort.key = k; histSort.dir = 1; }
+    renderHistorico();
+  });
 
   // Actividad
   $('#actividad-refresh').addEventListener('click', renderActividad);
