@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=4';
-import * as gh from './github.js?v=4';
+} from './schema.js?v=5';
+import * as gh from './github.js?v=5';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -608,10 +608,9 @@ async function showView(name) {
   $$('.view').forEach(v => v.hidden = v.dataset.view !== name);
   $('#page-title').textContent = TITLES[name] || name;
   // Trae lo último de la nube (incluye los ajustes que guardan los usuarios)
-  if (name === 'dashboard' || name === 'consolidado') await loadConsolidado();
+  if (name === 'dashboard') await loadConsolidado();
   if (name === 'historico') await loadHistorico();
   if (name === 'dashboard') renderDashboard();
-  if (name === 'consolidado') renderConsolidado();
   if (name === 'historico') renderHistorico();
   if (name === 'actividad') renderActividad();
   if (name === 'usuarios') renderUsuarios();
@@ -692,21 +691,8 @@ function bindEvents() {
   // Navegación
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
-  // Export / descarga de data
-  $('#export-excel').addEventListener('click', exportExcel);
+  // Descarga de data
   $('#download-mydata').addEventListener('click', exportExcel);
-
-  // Filtros consolidado
-  $('#search-input').addEventListener('input', e => { consFilter.q = e.target.value; renderConsolidado(); });
-  $('#filter-tipo').addEventListener('change', e => { consFilter.tipo = e.target.value; renderConsolidado(); });
-
-  // Ordenar al hacer clic en los encabezados
-  $('#consolidado-head').addEventListener('click', (e) => {
-    const th = e.target.closest('th[data-key]'); if (!th) return;
-    const k = th.dataset.key;
-    if (consSort.key === k) consSort.dir *= -1; else { consSort.key = k; consSort.dir = 1; }
-    renderConsolidado();
-  });
 
   // Histórico
   $('#hist-search').addEventListener('input', e => { histFilter.q = e.target.value; renderHistorico(); });

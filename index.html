@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=4" />
+  <link rel="stylesheet" href="css/styles.css?v=5" />
 </head>
 <body>
   <!-- ===================== LOGIN ===================== -->
@@ -49,9 +49,6 @@
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="dashboard">
           <span class="nav-ico">📊</span> Tablero
-        </button>
-        <button class="nav-item" data-view="consolidado">
-          <span class="nav-ico">📋</span> Consolidado
         </button>
         <button class="nav-item" data-view="cargar">
           <span class="nav-ico">📤</span> Cargar / Plantilla
@@ -144,29 +141,6 @@
                 <tbody id="proximas-body"></tbody>
               </table>
             </div>
-          </div>
-        </section>
-
-        <!-- CONSOLIDADO -->
-        <section class="view" data-view="consolidado" hidden>
-          <div class="panel">
-            <div class="panel-head">
-              <h3>Base Consolidada de No Conformidades</h3>
-              <div class="panel-head-actions">
-                <input type="search" id="search-input" class="search" placeholder="Buscar..." />
-                <select id="filter-tipo" class="select">
-                  <option value="">Todos los tipos de doc</option>
-                </select>
-                <button id="export-excel" class="btn btn-light">⬇ Excel</button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table class="data-table">
-                <thead id="consolidado-head"></thead>
-                <tbody id="consolidado-body"></tbody>
-              </table>
-            </div>
-            <p id="consolidado-empty" class="empty-state" hidden>No hay datos consolidados todavía. Sube un Excel desde "Cargar / Plantilla".</p>
           </div>
         </section>
 
@@ -327,6 +301,6 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="js/app.js?v=4"></script>
+  <script type="module" src="js/app.js?v=5"></script>
 </body>
 </html>
