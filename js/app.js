@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=3';
-import * as gh from './github.js?v=3';
+} from './schema.js?v=4';
+import * as gh from './github.js?v=4';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -282,6 +282,7 @@ async function exportExcel() {
     return;
   }
   try {
+    await loadConsolidado();          // trae lo último de la nube antes de descargar
     const famMap = buildFamiliaMap();
     const rows = visibleData().map(withDerived);
     const cols = [...EXPORT_COLUMNS, COMPRADOR_COL];   // SQL → ANTIGÜEDAD → creadas → Comprador
@@ -602,10 +603,13 @@ function renderUsuarios() {
 // ============================================================
 const TITLES = { dashboard: 'Tablero', consolidado: 'Consolidado', cargar: 'Cargar / Plantilla', base: 'Base original', historico: 'Histórico', actividad: 'Actividad', usuarios: 'Control de Usuarios', config: 'Configuración' };
 
-function showView(name) {
+async function showView(name) {
   $$('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   $$('.view').forEach(v => v.hidden = v.dataset.view !== name);
   $('#page-title').textContent = TITLES[name] || name;
+  // Trae lo último de la nube (incluye los ajustes que guardan los usuarios)
+  if (name === 'dashboard' || name === 'consolidado') await loadConsolidado();
+  if (name === 'historico') await loadHistorico();
   if (name === 'dashboard') renderDashboard();
   if (name === 'consolidado') renderConsolidado();
   if (name === 'historico') renderHistorico();
@@ -873,6 +877,7 @@ async function confirmBase() {
   const btn = $('#confirm-base');
   btn.disabled = true; btn.textContent = 'Procesando...';
   try {
+    await loadConsolidado();          // base vigente más reciente (conserva ajustes recientes)
     const { result, removed } = reconcileWeekly(state.data, state.pendingBase);
     await sbUpsert(result, false);
     await sbUpsert(removed, true);
