@@ -23,7 +23,7 @@ export const COLUMNS = [
   { key: 'COD_PROV',        label: 'Cód. Prov',    type: 'number' },
   { key: 'PROVEEDOR',       label: 'Proveedor',    type: 'text' },
   { key: 'PK_ARTICULOS',    label: 'PK Artículos', type: 'number' },
-  { key: 'NO_ARTI',         label: 'No. Artículo', type: 'number' },
+  { key: 'NO_ARTI',         label: 'No. Artículo', type: 'text' },
   { key: 'DESCRIPCION',     label: 'Descripción',  type: 'text' },
   { key: 'UNIDADES',        label: 'Unidades',     type: 'number' },
   { key: 'COST_UNI',        label: 'Costo Uni.',   type: 'number' },

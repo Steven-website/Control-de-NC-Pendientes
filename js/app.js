@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=8';
-import * as gh from './github.js?v=8';
+} from './schema.js?v=9';
+import * as gh from './github.js?v=9';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -36,6 +36,13 @@ function fmtCell(value, col) {
     return isFinite(n) ? n.toLocaleString('es-CR', { maximumFractionDigits: 2 }) : String(value);
   }
   return String(value);
+}
+
+// NO_ARTI: texto de 7 dígitos con ceros a la izquierda (567890 → 0567890).
+function padArti(v) {
+  if (v == null || v === '') return '';
+  const s = String(v).trim();
+  return /^\d+$/.test(s) ? s.padStart(7, '0') : s;
 }
 
 // Comparador para ordenar columnas: texto A→Z (con acentos), números y fechas.
@@ -301,8 +308,9 @@ function parseExcel(arrayBuffer) {
       if ((v == null || v === '') && col.default !== undefined) v = col.default;
       row[col.key] = v;
     }
+    row['NO_ARTI'] = padArti(row['NO_ARTI']);   // 7 dígitos con ceros a la izquierda
     return row;
-  }).filter(r => r['NO_DOCU'] != null || r['NO_ARTI'] != null); // descarta filas vacías
+  }).filter(r => r['NO_DOCU'] != null || (r['NO_ARTI'] != null && r['NO_ARTI'] !== '')); // descarta filas vacías
 }
 
 // Descarga en Excel con: orden (SQL → creadas), filtros, listas desplegables en
@@ -328,11 +336,15 @@ async function exportExcel() {
     ws.getRow(1).font = { bold: true };
     ws.views = [{ state: 'frozen', ySplit: 1 }];
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+    // NO_ARTI como TEXTO (conserva los ceros a la izquierda en Excel)
+    const artiIdx = cols.findIndex(c => c.key === 'NO_ARTI');
+    if (artiIdx >= 0) ws.getColumn(artiIdx + 1).numFmt = '@';
 
     rows.forEach(r => {
       const vals = {};
       cols.forEach(c => {
         if (c.key === 'COMPRADOR') { vals[c.key] = famMap.get(r['FAMILIA']) || ''; return; }
+        if (c.key === 'NO_ARTI') { vals[c.key] = padArti(r[c.key]); return; }
         vals[c.key] = (c.type === 'date') ? (isoDate(r[c.key]) || null) : (r[c.key] ?? null);
       });
       ws.addRow(vals);
