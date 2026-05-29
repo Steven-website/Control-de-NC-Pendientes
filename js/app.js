@@ -430,6 +430,7 @@ function renderDashboard() {
   $('#kpi-costo').textContent = '₡' + costo.toLocaleString('es-CR', { maximumFractionDigits: 0 });
   $('#kpi-docs').textContent  = docs.toLocaleString('es-CR');
 
+  renderBars($('#chart-almacen'), groupCount(d, 'ALMACEN'));
   renderBars($('#chart-tipo'), groupCount(d, 'PROVEEDOR'));
   renderBars($('#chart-familia'), groupCount(d, 'FAMILIA'));
 
