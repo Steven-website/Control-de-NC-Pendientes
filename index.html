@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="css/styles.css?v=10" />
+  <link rel="stylesheet" href="css/styles.css?v=11" />
 </head>
 <body>
   <!-- ===================== LOGIN ===================== -->
@@ -92,6 +92,17 @@
       <div class="content">
         <!-- DASHBOARD -->
         <section class="view" data-view="dashboard">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+            <h3 style="margin:0">Resumen</h3>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">Familia:
+                <select id="dash-familia" class="select"><option value="">Todas</option></select>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)">Comprador:
+                <select id="dash-comprador" class="select"><option value="">Todos</option></select>
+              </label>
+            </div>
+          </div>
           <div class="kpi-grid">
             <div class="kpi-card">
               <div class="kpi-ico kpi-blue">Σ</div>
@@ -322,6 +333,6 @@
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" src="js/app.js?v=10"></script>
+  <script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>

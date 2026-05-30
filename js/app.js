@@ -4,8 +4,8 @@
 import {
   COLUMNS, COLUMN_KEYS, ALL_COLUMNS, DERIVED, CREATED_KEYS, CREATED_COLUMNS, EXPORT_COLUMNS,
   withDerived, parseDate, PATHS,
-} from './schema.js?v=10';
-import * as gh from './github.js?v=10';
+} from './schema.js?v=11';
+import * as gh from './github.js?v=11';
 
 // ---------- Helpers DOM ----------
 const $  = (s, r = document) => r.querySelector(s);
@@ -497,8 +497,27 @@ function renderCostBars(el, entries) {
     }).join('') || '<p class="muted">Sin datos</p>');
 }
 
+let dashFamilia = '';
+let dashComprador = '';
+
 function renderDashboard() {
-  const d = visibleData();
+  const base = visibleData();
+  const famMap = buildFamiliaMap();   // familia → comprador
+
+  // Poblar filtros (familia desde la data; comprador desde los usuarios)
+  const fams = [...new Set(base.map(r => r['FAMILIA']).filter(Boolean))].sort();
+  const selF = $('#dash-familia');
+  selF.innerHTML = '<option value="">Todas</option>' + fams.map(f => `<option value="${f}">${f}</option>`).join('');
+  selF.value = dashFamilia;
+  const compradores = [...new Set(state.users.filter(u => u.role !== 'master').map(u => u.name || u.user))].sort();
+  const selC = $('#dash-comprador');
+  selC.innerHTML = '<option value="">Todos</option>' + compradores.map(c => `<option value="${c}">${c}</option>`).join('');
+  selC.value = dashComprador;
+
+  let d = base;
+  if (dashFamilia) d = d.filter(r => r['FAMILIA'] === dashFamilia);
+  if (dashComprador) d = d.filter(r => (famMap.get(r['FAMILIA']) || '') === dashComprador);
+
   const pend = d.filter(r => (r['ENVIADO_CXP'] || 'Pendiente') === 'Pendiente').length;
   const env  = d.filter(r => r['ENVIADO_CXP'] === 'Enviado').length;
   const costo = d.reduce((s, r) => s + (Number(r['COST_TOTAL']) || 0), 0);
@@ -786,6 +805,10 @@ function bindEvents() {
 
   // Navegación
   $$('.nav-item').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
+
+  // Filtros del tablero
+  $('#dash-familia').addEventListener('change', e => { dashFamilia = e.target.value; renderDashboard(); });
+  $('#dash-comprador').addEventListener('change', e => { dashComprador = e.target.value; renderDashboard(); });
 
   // Descarga de data
   $('#download-mydata').addEventListener('click', exportExcel);
